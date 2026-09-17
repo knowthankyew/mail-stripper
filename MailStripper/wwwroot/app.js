@@ -71,18 +71,39 @@ document.addEventListener('DOMContentLoaded', () => {
   const mlStatusDot = document.getElementById('mlStatusDot');
   const mlStatusLabel = document.getElementById('mlStatusLabel');
 
+  // Screen Reader Live Announcer
+  const srLiveRegion = document.getElementById('srLiveRegion');
+  let lastFocusedElement = null;
+
+  function announceToScreenReader(message) {
+    if (!srLiveRegion || !message) return;
+    srLiveRegion.textContent = message;
+  }
+
   let currentStrippedData = null;
 
   // Privacy Audit Modal Handlers
   if (privacyAuditBtn && privacyModal) {
     privacyAuditBtn.addEventListener('click', () => {
+      lastFocusedElement = privacyAuditBtn;
       privacyModal.showModal();
       loadPrivacyAudit();
     });
 
-    closePrivacyModalBtn.addEventListener('click', () => privacyModal.close());
+    closePrivacyModalBtn.addEventListener('click', () => {
+      privacyModal.close();
+      if (lastFocusedElement) lastFocusedElement.focus();
+    });
+
     privacyModal.addEventListener('click', (e) => {
-      if (e.target === privacyModal) privacyModal.close();
+      if (e.target === privacyModal) {
+        privacyModal.close();
+        if (lastFocusedElement) lastFocusedElement.focus();
+      }
+    });
+
+    privacyModal.addEventListener('close', () => {
+      if (lastFocusedElement) lastFocusedElement.focus();
     });
 
     runAuditBtn.addEventListener('click', loadPrivacyAudit);
@@ -193,6 +214,20 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  // Drop Zone Keyboard & Click Accessibility
+  dropZone.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      fileInput.click();
+    }
+  });
+
+  dropZone.addEventListener('click', (e) => {
+    if (e.target !== fileInput) {
+      fileInput.click();
+    }
+  });
+
   const nonEmailExtensions = [
     '.mp4', '.mov', '.avi', '.mkv', '.webm', '.wmv', '.m4v',
     '.mp3', '.wav', '.aac', '.flac', '.ogg',
@@ -212,6 +247,7 @@ document.addEventListener('DOMContentLoaded', () => {
     errorTitle.textContent = title || 'Invalid File Format';
     errorMessage.textContent = msg || 'An unexpected error occurred.';
     errorBanner.style.display = 'flex';
+    announceToScreenReader(`Alert: ${errorTitle.textContent}. ${errorMessage.textContent}`);
     errorBanner.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 
@@ -384,6 +420,9 @@ document.addEventListener('DOMContentLoaded', () => {
     data.attachments.forEach(att => {
       const card = document.createElement('div');
       card.className = 'att-card';
+      card.tabIndex = 0;
+      card.setAttribute('role', 'region');
+      card.setAttribute('aria-label', `Attachment: ${escapeHtml(att.fileName)}, ${escapeHtml(att.formattedSize)}`);
 
       const catClass = `cat-${att.category || 'generic'}`;
       const extLabel = (att.fileExtension || 'bin').toUpperCase();
@@ -399,12 +438,12 @@ document.addEventListener('DOMContentLoaded', () => {
           </div>
         </div>
         <div class="att-actions">
-          <a class="att-btn-dl" href="${att.downloadUrl}" download="${escapeHtml(att.fileName)}">
+          <a class="att-btn-dl" href="${att.downloadUrl}" download="${escapeHtml(att.fileName)}" aria-label="Download ${escapeHtml(att.fileName)}">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
             Download
           </a>
           ${att.isPreviewable ? `
-          <button class="att-btn-prev" data-index="${att.index}" title="Preview file">
+          <button class="att-btn-prev" data-index="${att.index}" title="Preview ${escapeHtml(att.fileName)}" aria-label="Preview ${escapeHtml(att.fileName)}">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
           </button>` : ''}
         </div>
@@ -412,25 +451,43 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (att.isPreviewable) {
         const prevBtn = card.querySelector('.att-btn-prev');
-        prevBtn.addEventListener('click', () => openPreviewModal(att));
+        prevBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          openPreviewModal(att, prevBtn);
+        });
       }
+
+      // Keyboard activation on card itself
+      card.addEventListener('keydown', (e) => {
+        if (e.target === card && (e.key === 'Enter' || e.key === ' ')) {
+          e.preventDefault();
+          if (att.isPreviewable) {
+            openPreviewModal(att, card);
+          } else {
+            const dlLink = card.querySelector('.att-btn-dl');
+            if (dlLink) dlLink.click();
+          }
+        }
+      });
 
       attachmentsGrid.appendChild(card);
     });
   }
 
   // Preview Modal
-  function openPreviewModal(att) {
+  function openPreviewModal(att, triggerEl) {
+    lastFocusedElement = triggerEl || document.activeElement;
     modalFileName.textContent = att.fileName;
     modalDownloadBtn.href = att.downloadUrl;
     modalDownloadBtn.download = att.fileName;
+    modalDownloadBtn.setAttribute('aria-label', `Download ${att.fileName}`);
     modalBody.innerHTML = '<div class="spinner-ring" style="width:30px;height:30px;"></div>';
     previewModal.showModal();
 
     if (att.category === 'image') {
       const img = new Image();
       img.src = att.previewUrl;
-      img.alt = att.fileName;
+      img.alt = `Preview of ${att.fileName}`;
       img.onload = () => {
         modalBody.innerHTML = '';
         modalBody.appendChild(img);
@@ -454,9 +511,20 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  closeModalBtn.addEventListener('click', () => previewModal.close());
+  closeModalBtn.addEventListener('click', () => {
+    previewModal.close();
+    if (lastFocusedElement) lastFocusedElement.focus();
+  });
+
   previewModal.addEventListener('click', (e) => {
-    if (e.target === previewModal) previewModal.close();
+    if (e.target === previewModal) {
+      previewModal.close();
+      if (lastFocusedElement) lastFocusedElement.focus();
+    }
+  });
+
+  previewModal.addEventListener('close', () => {
+    if (lastFocusedElement) lastFocusedElement.focus();
   });
 
   // Body Inspector Tabs
@@ -483,7 +551,12 @@ document.addEventListener('DOMContentLoaded', () => {
       navigator.clipboard.writeText(currentStrippedData.oneSentenceTitle).then(() => {
         const originalText = copyTitleBtn.innerHTML;
         copyTitleBtn.innerHTML = '<span>✓ Copied!</span>';
-        setTimeout(() => copyTitleBtn.innerHTML = originalText, 1800);
+        copyTitleBtn.setAttribute('aria-label', 'One-sentence title copied to clipboard');
+        announceToScreenReader('One-sentence title copied to clipboard');
+        setTimeout(() => {
+          copyTitleBtn.innerHTML = originalText;
+          copyTitleBtn.setAttribute('aria-label', 'Copy one-sentence title to clipboard');
+        }, 1800);
       });
     }
   });
@@ -499,7 +572,12 @@ document.addEventListener('DOMContentLoaded', () => {
       navigator.clipboard.writeText(text).then(() => {
         const orig = copySummaryBtn.innerHTML;
         copySummaryBtn.innerHTML = '✓';
-        setTimeout(() => copySummaryBtn.innerHTML = orig, 1800);
+        copySummaryBtn.setAttribute('aria-label', 'Summary copied to clipboard');
+        announceToScreenReader('Summary copied to clipboard');
+        setTimeout(() => {
+          copySummaryBtn.innerHTML = orig;
+          copySummaryBtn.setAttribute('aria-label', 'Copy short summary to clipboard');
+        }, 1800);
       });
     }
   });
@@ -511,11 +589,19 @@ document.addEventListener('DOMContentLoaded', () => {
     pasteContent.value = '';
     charCount.textContent = '0 characters';
     currentStrippedData = null;
+    announceToScreenReader('Reset to email ingestion screen.');
+    if (tabUploadBtn.classList.contains('active')) {
+      dropZone.focus();
+    } else {
+      pasteContent.focus();
+    }
   });
 
   // View State Helpers
   function showLoading(status) {
-    loadingStatusText.textContent = status || 'Processing email...';
+    const text = status || 'Processing email...';
+    loadingStatusText.textContent = text;
+    announceToScreenReader(text);
     ingestionSection.style.display = 'none';
     resultsSection.style.display = 'none';
     loadingSection.style.display = 'flex';
@@ -526,6 +612,14 @@ document.addEventListener('DOMContentLoaded', () => {
     ingestionSection.style.display = 'none';
     resultsSection.style.display = 'flex';
     window.scrollTo({ top: 0, behavior: 'smooth' });
+
+    const titleText = resOneSentenceTitle.textContent.trim();
+    announceToScreenReader(`Email stripped successfully. Results loaded: ${titleText}`);
+
+    // Manage focus: move focus to the one-sentence title landmark
+    setTimeout(() => {
+      resOneSentenceTitle.focus();
+    }, 100);
   }
 
   function showIngestion() {
