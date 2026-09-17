@@ -139,16 +139,27 @@ Lead Security Auditor`;
     const latestVideo = path.join(tempVideoDir, videoFiles[videoFiles.length - 1]);
     const destMp4 = path.join(repoRoot, 'demo.mp4');
 
-    const venvFfmpeg = '/Users/cl0rkster/Dev/ml/src/FtaaSService.Worker/.venv/lib/python3.12/site-packages/imageio_ffmpeg/binaries/ffmpeg-macos-x86_64-v7.1';
-    const ffmpegPath = fs.existsSync(venvFfmpeg) ? venvFfmpeg : 'ffmpeg';
+    let ffmpegPath = 'ffmpeg';
+    const candidatePaths = [
+      '/opt/homebrew/bin/ffmpeg',
+      '/usr/local/bin/ffmpeg',
+      '/Users/cl0rkster/Dev/ml/src/FtaaSService.Worker/.venv/lib/python3.12/site-packages/imageio_ffmpeg/binaries/ffmpeg-macos-x86_64-v7.1'
+    ];
+    for (const p of candidatePaths) {
+      if (fs.existsSync(p)) {
+        ffmpegPath = p;
+        break;
+      }
+    }
 
     try {
-      console.log(`Converting recording to web-optimized MP4 (H.264) via ${ffmpegPath}...`);
+      console.log(`Converting recording to web-optimized MP4 (H.264)...`);
       execSync(`"${ffmpegPath}" -y -i "${latestVideo}" -c:v libx264 -pix_fmt yuv420p -movflags +faststart "${destMp4}"`, { stdio: 'inherit' });
       const stats = fs.statSync(destMp4);
       console.log(`\n🎉 Demo video recorded and saved to: ${destMp4} (${(stats.size / (1024 * 1024)).toFixed(2)} MB)\n`);
     } catch (e) {
-      console.warn('FFmpeg conversion error:', e.message);
+      console.warn('FFmpeg conversion error or not found. Kept raw recording:', e.message);
+      fs.copyFileSync(latestVideo, destMp4.replace('.mp4', '.webm'));
     }
 
     fs.rmSync(tempVideoDir, { recursive: true, force: true });
