@@ -1,4 +1,6 @@
+using System.Runtime.InteropServices;
 using MailStripper.Models;
+using MailStripper.Security;
 using MailStripper.Services;
 
 namespace MailStripper.Endpoints;
@@ -24,6 +26,11 @@ public static class StripEndpoints
                 return Results.BadRequest(new { error = "No email file uploaded or file is empty." });
             }
 
+            if (file.Length > SecurityConstants.MaxUploadSizeBytes)
+            {
+                return Results.BadRequest(new { error = $"File exceeds {SecurityConstants.MaxUploadSizeBytes / (1024 * 1024)} MB limit." });
+            }
+
             try
             {
                 using var stream = file.OpenReadStream();
@@ -46,6 +53,11 @@ public static class StripEndpoints
             if (string.IsNullOrWhiteSpace(request?.Content))
             {
                 return Results.BadRequest(new { error = "Content cannot be empty." });
+            }
+
+            if (request.Content.Length > SecurityConstants.MaxUploadSizeBytes)
+            {
+                return Results.BadRequest(new { error = $"Content exceeds {SecurityConstants.MaxUploadSizeBytes / (1024 * 1024)} MB limit." });
             }
 
             try
@@ -139,9 +151,9 @@ public static class StripEndpoints
             return Results.Ok(new
             {
                 service = "mailStripper",
-                version = "1.0.0",
-                runtime = ".NET 10.0",
-                parser = "MimeKit 4.18.0 (jstedfast)",
+                version = typeof(StripEndpoints).Assembly.GetName().Version?.ToString(3) ?? "1.0.0",
+                runtime = RuntimeInformation.FrameworkDescription,
+                parser = "MimeKit (jstedfast)",
                 mlInferenceStatus = mlOnline ? "Online (SmolLM2-135M)" : "Offline (Using Smart Extractive)",
                 mlInferenceOnline = mlOnline,
                 airGappedLocalOnly = true

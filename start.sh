@@ -27,9 +27,9 @@ if curl -s "${URL}/api/strip/status" > /dev/null 2>&1; then
     echo "✅ mailStripper is already running on ${URL}!"
     echo "🚀 Opening your browser..."
     if command -v open &> /dev/null; then
-        open "${URL}"
+        open "${URL}" || true
     elif command -v xdg-open &> /dev/null; then
-        xdg-open "${URL}"
+        xdg-open "${URL}" || true
     fi
     exit 0
 fi
@@ -67,9 +67,9 @@ echo ""
 
 # Open default browser automatically
 if command -v open &> /dev/null; then
-    open "${URL}"
+    open "${URL}" || true
 elif command -v xdg-open &> /dev/null; then
-    xdg-open "${URL}"
+    xdg-open "${URL}" || true
 fi
 
 # Keep script running while server is alive

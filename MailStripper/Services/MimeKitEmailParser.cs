@@ -1,10 +1,11 @@
 using System.Text;
+using System.Text.RegularExpressions;
 using MailStripper.Models;
 using MimeKit;
 
 namespace MailStripper.Services;
 
-public class MimeKitEmailParser : IEmailParser
+public partial class MimeKitEmailParser : IEmailParser
 {
     private readonly IEmailSummarizer _summarizer;
     private readonly IAttachmentStore _attachmentStore;
@@ -106,7 +107,7 @@ public class MimeKitEmailParser : IEmailParser
 
     private async Task<StrippedEmail> ProcessMimeMessageAsync(MimeMessage message, string? originalFileName, CancellationToken ct)
     {
-        var sessionId = Guid.NewGuid().ToString("n")[..12];
+        var sessionId = Guid.NewGuid().ToString("n");
         var rawSubject = message.Subject ?? string.Empty;
         var cleanSubject = ExtractiveEmailSummarizer.CleanSubject(rawSubject);
         if (string.IsNullOrWhiteSpace(cleanSubject) && !string.IsNullOrWhiteSpace(originalFileName))
@@ -281,11 +282,11 @@ public class MimeKitEmailParser : IEmailParser
 
     private static string HtmlToPlainText(string html)
     {
-        var text = System.Text.RegularExpressions.Regex.Replace(html, @"<style[^>]*>[\s\S]*?</style>", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-        text = System.Text.RegularExpressions.Regex.Replace(text, @"<script[^>]*>[\s\S]*?</script>", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-        text = System.Text.RegularExpressions.Regex.Replace(text, @"<br\s*/?>", "\n", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-        text = System.Text.RegularExpressions.Regex.Replace(text, @"</p>", "\n\n", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-        text = System.Text.RegularExpressions.Regex.Replace(text, @"<[^>]+>", " ");
+        var text = StyleRegex().Replace(html, "");
+        text = ScriptRegex().Replace(text, "");
+        text = BrRegex().Replace(text, "\n");
+        text = ParagraphRegex().Replace(text, "\n\n");
+        text = HtmlTagRegex().Replace(text, " ");
         text = System.Net.WebUtility.HtmlDecode(text);
         return string.Join("\n", text.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).Select(l => l.Trim()));
     }
@@ -329,4 +330,19 @@ public class MimeKitEmailParser : IEmailParser
             SummaryEngine = "None"
         };
     }
+
+    [GeneratedRegex(@"<style[^>]*>[\s\S]*?</style>", RegexOptions.IgnoreCase)]
+    private static partial Regex StyleRegex();
+
+    [GeneratedRegex(@"<script[^>]*>[\s\S]*?</script>", RegexOptions.IgnoreCase)]
+    private static partial Regex ScriptRegex();
+
+    [GeneratedRegex(@"<br\s*/?>", RegexOptions.IgnoreCase)]
+    private static partial Regex BrRegex();
+
+    [GeneratedRegex(@"</p>", RegexOptions.IgnoreCase)]
+    private static partial Regex ParagraphRegex();
+
+    [GeneratedRegex(@"<[^>]+>")]
+    private static partial Regex HtmlTagRegex();
 }

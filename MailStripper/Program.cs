@@ -1,7 +1,14 @@
 using MailStripper.Endpoints;
+using MailStripper.Security;
 using MailStripper.Services;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Limit request body size to prevent memory exhaustion
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.Limits.MaxRequestBodySize = SecurityConstants.MaxUploadSizeBytes;
+});
 
 // Add Services
 builder.Services.AddHttpClient();
@@ -28,7 +35,7 @@ var app = builder.Build();
 // Strict Security Headers & CSP proving zero external egress
 app.Use(async (context, next) =>
 {
-    context.Response.Headers.Append("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' http://localhost:8000; font-src 'self' data:; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self';");
+    context.Response.Headers.Append("Content-Security-Policy", SecurityConstants.ContentSecurityPolicy);
     context.Response.Headers.Append("X-Content-Type-Options", "nosniff");
     context.Response.Headers.Append("X-Frame-Options", "DENY");
     context.Response.Headers.Append("Referrer-Policy", "no-referrer");

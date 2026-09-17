@@ -35,6 +35,7 @@ public class MimeKitParserTests
         Assert.NotEmpty(result.ShortSummary);
         Assert.True(result.TotalAttachmentBytes > 0);
         Assert.NotEmpty(result.DownloadAllZipUrl);
+        Assert.Equal(32, result.Id.Length);
 
         // Verify attachment store contains items
         var att0 = store.GetAttachment(result.Id, 0);
@@ -87,5 +88,43 @@ public class MimeKitParserTests
         Assert.Contains("Please review the attached release notes", result.Subject);
         Assert.NotEmpty(result.OneSentenceTitle);
         Assert.Equal(0, result.AttachmentCount);
+    }
+
+    [Fact]
+    public async Task ParseStreamAsync_HtmlOnlyEmail_UsesGeneratedRegexToExtractPlainText()
+    {
+        using var store = new MemoryAttachmentStore();
+        var summarizer = new ExtractiveEmailSummarizer();
+        var parser = new MimeKitEmailParser(summarizer, store, NullLogger<MimeKitEmailParser>.Instance);
+
+        var eml = "From: sender@example.com\r\n" +
+                  "To: recipient@example.com\r\n" +
+                  "Subject: HTML Newsletter Update\r\n" +
+                  "Content-Type: text/html; charset=utf-8\r\n\r\n" +
+                  "<html><head><style>body { color: red; }</style><script>alert('xss');</script></head>" +
+                  "<body><h1>Quarterly Performance</h1><p>We achieved <b>140%</b> of target quota.</p><br/>" +
+                  "<p>Next sync is tomorrow at 10 AM.</p></body></html>";
+
+        using var ms = new MemoryStream(Encoding.UTF8.GetBytes(eml));
+        var result = await parser.ParseStreamAsync(ms, "newsletter.eml");
+
+        Assert.NotNull(result);
+        Assert.Contains("Quarterly Performance", result.ShortSummary);
+        Assert.DoesNotContain("alert", result.ShortSummary);
+        Assert.DoesNotContain("color: red", result.ShortSummary);
+    }
+
+    [Fact]
+    public void MemoryAttachmentStore_Dispose_CleansUpTimerSafely()
+    {
+        var store = new MemoryAttachmentStore();
+        var sessionId = "test_cleanup_session";
+        store.Store(sessionId, new List<AttachmentData>
+        {
+            new AttachmentData { Index = 0, Id = "0", FileName = "file.txt", ContentType = "text/plain", Data = [1, 2, 3] }
+        });
+
+        Assert.True(store.HasAttachments(sessionId));
+        store.Dispose(); // Should terminate background loop cleanly without throw
     }
 }

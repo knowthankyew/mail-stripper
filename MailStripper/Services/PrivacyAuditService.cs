@@ -29,7 +29,10 @@ public class PrivacyAuditService
 
     public PrivacyAuditReport GenerateReport()
     {
-        // 1. Inspect active TCP connections for the machine/process
+        // 1. Inspect active TCP connections
+        // Note: IPGlobalProperties.GetActiveTcpConnections() inspects machine-wide TCP connections.
+        // As .NET BCL does not provide per-process socket enumeration without OS-specific native hooks,
+        // we inspect and filter by application-relevant ports (5001 / 8000).
         var activeConnections = new List<string>();
         int externalCount = 0;
 
@@ -69,8 +72,8 @@ public class PrivacyAuditService
         bool zeroDiskWrites = true; // MemoryAttachmentStore uses memory streams exclusively
         var storagePolicy = "100% Volatile In-Memory (MemoryStream / ConcurrentDictionary). Zero files written to /tmp or disk.";
 
-        // 3. CSP Policy string
-        var csp = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' http://localhost:8000; font-src 'self'; object-src 'none'; frame-ancestors 'none';";
+        // 3. CSP Policy string (synchronized with Program.cs)
+        var csp = MailStripper.Security.SecurityConstants.ContentSecurityPolicy;
 
         // 4. Summarizer engine audit
         var summarizerMode = _summarizer is MlHybridSummarizer

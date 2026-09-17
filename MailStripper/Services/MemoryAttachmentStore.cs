@@ -4,12 +4,36 @@ using MailStripper.Models;
 
 namespace MailStripper.Services;
 
-public class MemoryAttachmentStore : IAttachmentStore
+public class MemoryAttachmentStore : IAttachmentStore, IDisposable
 {
     private record SessionContainer(DateTime CreatedAt, List<AttachmentData> Items);
 
     private readonly ConcurrentDictionary<string, SessionContainer> _cache = new();
     private readonly TimeSpan _retention = TimeSpan.FromMinutes(45);
+    private readonly CancellationTokenSource _cts = new();
+    private readonly Task _cleanupLoop;
+
+    public MemoryAttachmentStore()
+    {
+        _cleanupLoop = Task.Run(PeriodicCleanupLoopAsync);
+    }
+
+    private async Task PeriodicCleanupLoopAsync()
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromMinutes(5));
+        while (!_cts.IsCancellationRequested)
+        {
+            try
+            {
+                await timer.WaitForNextTickAsync(_cts.Token);
+                CleanupExpired();
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
+        }
+    }
 
     public void Store(string sessionId, IEnumerable<AttachmentData> attachments)
     {
@@ -20,6 +44,7 @@ public class MemoryAttachmentStore : IAttachmentStore
 
     public AttachmentData? GetAttachment(string sessionId, int index)
     {
+        CleanupExpired();
         if (_cache.TryGetValue(sessionId, out var container))
         {
             if (index >= 0 && index < container.Items.Count)
@@ -101,5 +126,12 @@ public class MemoryAttachmentStore : IAttachmentStore
         var invalidChars = Path.GetInvalidFileNameChars();
         var clean = new string(fileName.Where(c => !invalidChars.Contains(c)).ToArray()).Trim();
         return string.IsNullOrEmpty(clean) ? "attachment" : clean;
+    }
+
+    public void Dispose()
+    {
+        _cts.Cancel();
+        _cts.Dispose();
+        GC.SuppressFinalize(this);
     }
 }

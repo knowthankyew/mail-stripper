@@ -43,7 +43,7 @@ public class MlHybridSummarizer : IEmailSummarizer
             var res = await _httpClient.GetAsync(_options.Value.HealthEndpoint, cts.Token);
             return res.IsSuccessStatusCode;
         }
-        catch
+        catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
         {
             return false;
         }
@@ -104,7 +104,7 @@ public class MlHybridSummarizer : IEmailSummarizer
                 }
             }
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
         {
             _logger.LogDebug(ex, "ML Inference endpoint not reachable or timed out. Gracefully used Smart Extractive summarizer.");
         }
