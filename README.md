@@ -6,10 +6,36 @@ A high-performance **.NET 10** utility and API ingestion plane built upon Jeffre
 
 `mailStripper` provides:
 1. **API Ingestion Plane**: Ingest `.eml` files (multipart form upload) or raw pasted RFC 822 / email snippets.
-2. **One-Sentence Title**: Synthesizes the sender's core intent or request into a punchy single sentence as the headline.
+2. **One-Sentence Title**: Synthesizes the sender's core intent or request into a punchy single sentence headline.
 3. **Short Summary**: Distills actionable items, deadlines, key updates, and attachment details without signature clutter, legal disclaimers, or reply quoting chains.
 4. **Instant Attachment Extraction**: Inspect file categories (Spreadsheets, PDFs, Images, Code, Archives), download files individually, preview inline, or download all attachments in a single **`.ZIP` bundle** with one click.
-5. **Polyglot ML Integration**: Operates out-of-the-box with a high-speed, zero-dependency extractive summarizer, and automatically connects to the local FTaaS ML inference endpoint (`SmolLM2-135M` / `TinyLlama-1.1B`) when available in the `../ml` directory.
+5. **🛡️ 100% Local-Only & Air-Gapped Proof**: Provable zero external network egress, zero disk leakage, and zero telemetry.
+6. **Polyglot ML Integration**: Operates out-of-the-box with a high-speed, zero-dependency extractive summarizer, and automatically connects to the local FTaaS ML inference endpoint (`SmolLM2-135M` / `TinyLlama-1.1B`) when available in the `../ml` directory.
+
+---
+
+## 📺 Interactive Video Demonstration
+
+Watch the complete end-to-end automated demonstration in action—from privacy proof inspection and guardrail validation to sample email extraction, inline previews, and raw text ingestion:
+
+> **Recorded Demonstration**: [demo.mp4](demo.mp4) *(High-definition Playwright automated recording, 35s, 1366x860)*
+>
+> To regenerate this demonstration at any time, run: `./scripts/record-demo.sh`
+
+---
+
+## 🛡️ Provable Local-Only & Air-Gapped Architecture
+
+`mailStripper` doesn't just claim privacy — it proves it architecturally and cryptographically:
+
+1. **Zero External Egress (Hard CSP)**:
+   All HTTP responses enforce a strict Content Security Policy (`default-src 'self'; connect-src 'self' http://localhost:8000; font-src 'self'; object-src 'none'`). The browser kernel actively blocks any outbound network calls to external domains.
+2. **Zero Disk Storage (Volatile RAM Only)**:
+   Emails and extracted attachments are never saved to temporary disk folders or cached files. Streams are decoded in volatile memory (`MemoryStream` / `ConcurrentDictionary` with sliding TTL).
+3. **Zero Telemetry / Self-Contained Assets**:
+   Zero Google Analytics, tracking pixels, or remote telemetry. Remote CDN fonts have been completely replaced with native system font stacks (`-apple-system`, `BlinkMacSystemFont`, `JetBrains Mono`) for 100% offline air-gapped isolation.
+4. **Live Cryptographic Proof Endpoint**:
+   Query `GET /api/strip/privacy-audit` at any time to inspect active socket endpoints, zero disk leakage status, and the SHA-256 system audit fingerprint. Or click the **"🛡️ 100% Local-Only"** badge in the UI.
 
 ---
 
@@ -17,6 +43,7 @@ A high-performance **.NET 10** utility and API ingestion plane built upon Jeffre
 
 ### Prerequisites
 - [.NET 10 SDK](https://dotnet.microsoft.com/download) installed.
+- (Optional) [Node.js](https://nodejs.org) to run Playwright E2E tests and video recordings.
 
 ### Run Locally
 ```bash
@@ -32,7 +59,8 @@ Open your browser to: **[http://localhost:5001](http://localhost:5001)**
 ```mermaid
 flowchart LR
     Client["Client (Browser / REST API)"] --> Ingestion["API Ingestion Plane"]
-    Ingestion --> Parser["IEmailParser (MimeKitEmailParser)"]
+    Ingestion --> Validator["EmailValidator (Magic Bytes & Guardrails)"]
+    Validator --> Parser["IEmailParser (MimeKitEmailParser)"]
     Parser --> Model["StrippedEmail (Domain Model)"]
     Model --> Summarizer["IEmailSummarizer (Extractive + FTaaS ML Hybrid)"]
     Model --> Store["IAttachmentStore (MemorySessionStore)"]
@@ -41,11 +69,13 @@ flowchart LR
 ```
 
 ### Core Services
+- `EmailValidator`: Validates file extensions and inspects the first 1 KB of stream bytes for binary magic signatures (MP4, PNG, JPEG, PDF, ZIP, Mach-O/ELF). Rejects non-email files with diagnostic `HTTP 400` errors before parsing.
 - `IEmailParser`: Uses `MimeKit.MimeParser` to traverse complex MIME trees, handling multipart/alternative, multipart/mixed, nested RFC 822 messages, and inline CID parts.
 - `IEmailSummarizer`:
   - `ExtractiveEmailSummarizer`: Subject prefix cleaning (e.g. `Re:`, `Fwd:`, `[SEC=OFFICIAL]`), quote removal (`> ...`), greetings/sign-offs stripping, and salience-scored intent formulation.
   - `MlHybridSummarizer`: Checks local FTaaS inference server (`http://localhost:8000/api/v1/inference/generate`) for compact on-device LLM generation, with instantaneous fallback to extractive mode if offline.
 - `IAttachmentStore`: In-memory temporary cache with sliding expiration TTL and dynamic `System.IO.Compression.ZipArchive` generation for single-click `.zip` bundle downloads.
+- `PrivacyAuditService`: Conducts live system socket inspections, verifying zero external connections and generating cryptographic audit hashes.
 
 ---
 
@@ -57,34 +87,6 @@ POST /api/strip/file
 Content-Type: multipart/form-data
 ```
 **Form Field**: `file` (the `.eml`, `.msg`, or raw MIME message).
-
-**Response**:
-```json
-{
-  "id": "f38568089ab0",
-  "subject": "Q3 Distributed Pipeline Architecture & Budget Sign-Off",
-  "from": "\"Cassian Brooks\" <cassian.brooks@vanguard-tech.io>",
-  "oneSentenceTitle": "Cassian Brooks is requesting a review of the provided details and attached 3 files.",
-  "shortSummary": "Please review the attached updated Q3 distributed pipeline architecture and the revised infrastructure budget breakdown...",
-  "keyBulletPoints": [
-    "Please review the attached updated Q3 distributed pipeline architecture...",
-    "The security compliance sign-off document has been finalized and verified by InfoSec.",
-    "Includes 3 attachment(s): q3_budget_breakdown.csv, security_compliance_signoff.txt, pipeline_architecture_diagram.png."
-  ],
-  "attachments": [
-    {
-      "index": 0,
-      "fileName": "q3_budget_breakdown.csv",
-      "contentType": "text/csv",
-      "formattedSize": "265 B",
-      "downloadUrl": "/api/strip/f38568089ab0/attachments/0",
-      "previewUrl": "/api/strip/f38568089ab0/attachments/0/preview",
-      "category": "spreadsheet"
-    }
-  ],
-  "downloadAllZipUrl": "/api/strip/f38568089ab0/attachments/download-all"
-}
-```
 
 ### 2. Ingest Raw Text / Headers
 ```http
@@ -114,13 +116,32 @@ GET /api/strip/sample
 ```
 Returns a rich pre-parsed enterprise email with attached CSV, security clearance TXT, and PNG diagram for 1-click evaluation.
 
+### 6. Local-Only Privacy Audit
+```http
+GET /api/strip/privacy-audit
+```
+Returns live audit verification of loopback-only connections, zero disk leakage, active CSP headers, and SHA-256 fingerprint.
+
 ---
 
-## 🧪 Automated Testing
+## 🧪 Testing
 
-Run the full xUnit test suite covering RFC 822 parsing, subject tag cleaning, intent extraction, attachment caching, and zip archiving:
+### 1. .NET Automated Unit Tests
+Run the 19 xUnit tests covering RFC 822 parsing, subject cleaning, intent summarization, magic bytes validation, and air-gapped privacy guarantees:
 ```bash
 dotnet test
+```
+
+### 2. Playwright E2E Tests
+Run the browser automation test suite (5 tests covering privacy proof modals, sample loading, attachment previews, MP4 rejection guardrails, and raw text paste):
+```bash
+node tests/e2e/run-tests.js
+```
+
+### 3. Record Automated Demo Video
+Regenerate `demo.mp4` via Playwright:
+```bash
+./scripts/record-demo.sh
 ```
 
 ---

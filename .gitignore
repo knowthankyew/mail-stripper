@@ -481,3 +481,5 @@ $RECYCLE.BIN/
 # Vim temporary swap files
 *.swp
 .DS_Store
+node_modules/
+.temp_demo_videos/

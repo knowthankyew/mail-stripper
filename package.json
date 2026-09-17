@@ -1,0 +1,13 @@
+{
+  "name": "mail-stripper",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "test": "node tests/e2e/run-tests.js",
+    "test:e2e": "node tests/e2e/run-tests.js",
+    "record-demo": "./scripts/record-demo.sh"
+  },
+  "dependencies": {
+    "playwright-core": "^1.63.0"
+  }
+}

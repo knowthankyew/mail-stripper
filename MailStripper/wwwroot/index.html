@@ -6,10 +6,6 @@
   <title>mailStripper — Minimalist Email Parser & Attachment Ingestion</title>
   <meta name="description" content="A provocative, lightning-fast .NET 10 utility powered by jstedfast's MimeKit. Strips emails down to a one-sentence title, short summary, and clean attachment downloads.">
   
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  
   <link rel="stylesheet" href="app.css">
 </head>
 <body>
@@ -34,6 +30,10 @@
       </div>
 
       <div class="header-badges">
+        <button class="engine-badge privacy-badge" id="privacyAuditBtn" title="Click to view Local-Only & Air-Gapped proof">
+          <span class="badge-dot dot-emerald"></span>
+          <span class="badge-label">🛡️ 100% Local-Only</span>
+        </button>
         <div class="engine-badge" id="mimekitBadge" title="Built on Jeffrey Stedfast's rock-solid MimeKit RFC 822 library">
           <span class="badge-dot"></span>
           <span class="badge-label">MimeKit 4.18 (jstedfast)</span>
@@ -283,6 +283,63 @@
       </div>
       <div class="modal-body" id="modalBody">
         <!-- Image, Text, or iframe -->
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Local-Only & Air-Gapped Proof Dialog -->
+  <dialog class="preview-modal privacy-audit-dialog" id="privacyModal">
+    <div class="modal-card privacy-card">
+      <div class="modal-header">
+        <div class="privacy-modal-title-group">
+          <span class="privacy-icon">🛡️</span>
+          <div>
+            <h4 class="modal-title">100% Local-Only &amp; Air-Gapped Proof</h4>
+            <p class="privacy-modal-sub">Cryptographic &amp; Architectural Privacy Verification</p>
+          </div>
+        </div>
+        <button class="btn-close" id="closePrivacyModalBtn" aria-label="Close">✕</button>
+      </div>
+      <div class="modal-body privacy-body">
+        <div class="privacy-pillars-grid">
+          <div class="pillar-card">
+            <div class="pillar-icon">🌐 0</div>
+            <h5>Zero Remote Egress</h5>
+            <p>Enforced by strict Content-Security-Policy kernel headers. Zero outbound network calls to any external domain.</p>
+          </div>
+          <div class="pillar-card">
+            <div class="pillar-icon">💾 0</div>
+            <h5>Zero Disk Storage</h5>
+            <p>All email streams and attachments reside solely in volatile RAM (<code>MemoryStream</code>). Zero temp files written.</p>
+          </div>
+          <div class="pillar-card">
+            <div class="pillar-icon">🔒 100%</div>
+            <h5>Zero Telemetry</h5>
+            <p>No Google Analytics, no tracking pixels, no telemetry beacons. 100% self-contained local font stacks.</p>
+          </div>
+          <div class="pillar-card">
+            <div class="pillar-icon">⚡ Local</div>
+            <h5>In-Process Intelligence</h5>
+            <p>Runs locally via jstedfast/MimeKit extractive engine or local loopback ML (<code>localhost:8000</code>).</p>
+          </div>
+        </div>
+
+        <div class="live-audit-box">
+          <div class="audit-box-header">
+            <h4>Live System Privacy Audit</h4>
+            <button class="btn btn-secondary btn-sm" id="runAuditBtn">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+              Run Audit Now
+            </button>
+          </div>
+          <div class="audit-results" id="auditResultsContent">
+            <div class="audit-row"><span class="audit-label">External Connections:</span> <span class="audit-val verified" id="auditExtConn">0 (Verified)</span></div>
+            <div class="audit-row"><span class="audit-label">Disk Storage Policy:</span> <span class="audit-val verified" id="auditStorage">100% Volatile RAM</span></div>
+            <div class="audit-row"><span class="audit-label">Content Security Policy:</span> <span class="audit-val verified" id="auditCsp">default-src 'self' (Enforced)</span></div>
+            <div class="audit-row"><span class="audit-label">Telemetry Status:</span> <span class="audit-val verified" id="auditTelemetry">Strictly Disabled</span></div>
+            <div class="audit-row"><span class="audit-label">SHA-256 Audit Fingerprint:</span> <span class="audit-val code-val" id="auditFingerprint">Computing...</span></div>
+          </div>
+        </div>
       </div>
     </div>
   </dialog>

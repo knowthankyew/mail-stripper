@@ -143,8 +143,16 @@ public static class StripEndpoints
                 runtime = ".NET 10.0",
                 parser = "MimeKit 4.18.0 (jstedfast)",
                 mlInferenceStatus = mlOnline ? "Online (SmolLM2-135M)" : "Offline (Using Smart Extractive)",
-                mlInferenceOnline = mlOnline
+                mlInferenceOnline = mlOnline,
+                airGappedLocalOnly = true
             });
+        });
+
+        // Cryptographic & Live Privacy Audit verification endpoint
+        group.MapGet("/privacy-audit", (PrivacyAuditService auditService) =>
+        {
+            var report = auditService.GenerateReport();
+            return Results.Ok(report);
         });
     }
 }
