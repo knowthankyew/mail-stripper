@@ -79,3 +79,9 @@ For developers or automated pipelines, `mailStripper` exposes simple REST endpoi
 ## 🤝 Credits & Ecosystem
 - Built on the solid foundation of [MimeKit](https://github.com/jstedfast/MimeKit) by Jeffrey Stedfast (`jstedfast`).
 - Optional ML text understanding pairs with [knowthankyew/event-driven-ftaas](https://github.com/knowthankyew/event-driven-ftaas).
+
+---
+
+## 📄 License
+
+This project is licensed under the [MIT License](LICENSE) — free for personal and commercial evaluation with zero warranty or liability.
