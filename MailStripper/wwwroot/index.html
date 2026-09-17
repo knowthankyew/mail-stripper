@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>mailStripper — Minimalist Email Parser & Attachment Ingestion</title>
+  <meta name="description" content="A provocative, lightning-fast .NET 10 utility powered by jstedfast's MimeKit. Strips emails down to a one-sentence title, short summary, and clean attachment downloads.">
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <div class="glow-backdrop"></div>
+  
+  <header class="app-header">
+    <div class="header-inner">
+      <div class="brand-group">
+        <div class="logo-wrapper">
+          <div class="logo-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="m22 2-7 20-4-9-9-4Z"/>
+              <path d="M22 2 11 13"/>
+            </svg>
+          </div>
+          <div class="brand-text">
+            <h1 class="brand-title">mail<span>Stripper</span></h1>
+            <span class="pronunciation-tag" title="Pronounced just like 'male stripper'">/meɪl ˈstrɪp.ər/</span>
+          </div>
+        </div>
+        <p class="brand-tagline">Strips your emails down to the bare essentials</p>
+      </div>
+
+      <div class="header-badges">
+        <div class="engine-badge" id="mimekitBadge" title="Built on Jeffrey Stedfast's rock-solid MimeKit RFC 822 library">
+          <span class="badge-dot"></span>
+          <span class="badge-label">MimeKit 4.18 (jstedfast)</span>
+        </div>
+        <div class="engine-badge ml-badge" id="mlStatusBadge" title="Local ML Inference Status">
+          <span class="badge-dot" id="mlStatusDot"></span>
+          <span class="badge-label" id="mlStatusLabel">Checking ML...</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="main-container">
+    <!-- Ingestion Stage -->
+    <section class="ingestion-section" id="ingestionSection">
+      <!-- Error Notification Banner -->
+      <div class="error-banner" id="errorBanner" style="display: none;">
+        <div class="error-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        </div>
+        <div class="error-content">
+          <h4 class="error-title" id="errorTitle">Invalid File Format</h4>
+          <p class="error-message" id="errorMessage">Please upload an exported email (.eml) or paste raw email text.</p>
+        </div>
+        <button class="btn-close-error" id="closeErrorBtn" aria-label="Dismiss error">✕</button>
+      </div>
+
+      <div class="tabs-container">
+        <div class="tab-list" role="tablist">
+          <button class="tab-btn active" id="tabUploadBtn" role="tab" aria-selected="true">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            Drop Email (.eml)
+          </button>
+          <button class="tab-btn" id="tabPasteBtn" role="tab" aria-selected="false">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg>
+            Paste Raw Text / Headers
+          </button>
+        </div>
+
+        <div class="quick-demo-bar">
+          <span class="quick-demo-label">No .eml file handy?</span>
+          <button class="btn btn-demo" id="loadSampleBtn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+            ⚡ Load Sample Email (3 Attachments)
+          </button>
+          <a class="btn-link" id="downloadSampleLink" href="/api/strip/sample/download" download="sample_enterprise_email.eml">
+            Download Sample .eml
+          </a>
+        </div>
+      </div>
+
+      <!-- Drag & Drop Zone -->
+      <div class="tab-panel active" id="panelUpload" role="tabpanel">
+        <div class="drop-zone" id="dropZone">
+          <input type="file" id="fileInput" accept=".eml,.msg,.txt,.bin" class="file-input-hidden" />
+          <div class="drop-content">
+            <div class="drop-icon-wrapper">
+              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+                <path d="M12 18v-6"/>
+                <path d="m9 15 3-3 3 3"/>
+              </svg>
+            </div>
+            <h3 class="drop-title">Drag & drop your email here</h3>
+            <p class="drop-subtitle">Supports <code>.eml</code>, <code>.msg</code>, or raw MIME exports. Or <span class="drop-browse">browse from computer</span></p>
+            <div class="drop-specs">
+              <span>⚡ MimeKit RFC 822 Parser</span>
+              <span>🔒 100% In-Memory Processing</span>
+              <span>📦 Immediate Attachment Extraction</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Paste Text Panel -->
+      <div class="tab-panel" id="panelPaste" role="tabpanel">
+        <div class="paste-zone">
+          <label for="pasteContent" class="paste-label">
+            <span>Paste email text or raw RFC 822 message</span>
+            <span class="char-count" id="charCount">0 characters</span>
+          </label>
+          <textarea id="pasteContent" class="paste-textarea" placeholder="Paste full RFC 822 email with headers or raw message body:&#10;&#10;From: Alex Mercer <alex@example.com>&#10;Subject: Project Kickoff Meeting&#10;Date: Thu, 17 Sep 2026 09:30:00 -0400&#10;&#10;Hi Team, please find attached the revised milestones..." rows="10"></textarea>
+          <div class="paste-actions">
+            <button class="btn btn-secondary" id="clearPasteBtn">Clear</button>
+            <button class="btn btn-primary" id="submitPasteBtn">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg>
+              Strip Email
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Loading Spinner / Shimmer -->
+    <section class="loading-section" id="loadingSection" style="display: none;">
+      <div class="loading-card">
+        <div class="spinner-ring"></div>
+        <h3 class="loading-title" id="loadingStatusText">Stripping email down to essentials...</h3>
+        <p class="loading-subtext">Decoding MIME hierarchy & distilling one-sentence summary</p>
+      </div>
+    </section>
+
+    <!-- Results Display Section -->
+    <section class="results-section" id="resultsSection" style="display: none;">
+      <!-- Results Action Bar -->
+      <div class="results-top-bar">
+        <div class="email-identity">
+          <span class="subject-tag" id="resSubjectPill">Subject</span>
+          <span class="engine-tag" id="resEnginePill">Smart Extractive</span>
+        </div>
+        <div class="top-actions">
+          <button class="btn btn-secondary btn-sm" id="stripAnotherBtn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
+            Strip Another Email
+          </button>
+        </div>
+      </div>
+
+      <!-- Hero One-Sentence Title -->
+      <div class="hero-card hero-summary-card">
+        <div class="hero-label-row">
+          <div class="hero-label">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
+            ONE-SENTENCE TITLE
+          </div>
+          <button class="btn-icon" id="copyTitleBtn" title="Copy One-Sentence Title to clipboard">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+            <span class="copy-text">Copy</span>
+          </button>
+        </div>
+        <h2 class="hero-title-text" id="resOneSentenceTitle">
+          Cassian Brooks is requesting review and budget sign-off on the Q3 Distributed Pipeline Architecture.
+        </h2>
+      </div>
+
+      <!-- Two-column Layout: Short Summary + Metadata -->
+      <div class="content-grid">
+        <!-- Short Summary Card -->
+        <div class="content-card summary-card">
+          <div class="card-header">
+            <div class="card-header-left">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+              <h3>Short Summary</h3>
+            </div>
+            <button class="btn-icon btn-icon-sm" id="copySummaryBtn" title="Copy Summary">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+            </button>
+          </div>
+          <div class="card-body">
+            <ul class="bullet-list" id="resBulletList"></ul>
+            <p class="summary-paragraph" id="resShortSummaryText"></p>
+          </div>
+        </div>
+
+        <!-- Sender & Message Metadata -->
+        <div class="content-card metadata-card">
+          <div class="card-header">
+            <div class="card-header-left">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8"/></svg>
+              <h3>Email Metadata</h3>
+            </div>
+          </div>
+          <div class="meta-list">
+            <div class="meta-item">
+              <span class="meta-key">From</span>
+              <span class="meta-val" id="resFrom">Cassian Brooks</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-key">To</span>
+              <span class="meta-val" id="resTo">Architecture Working Group</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-key">Date</span>
+              <span class="meta-val" id="resDate">Sep 17, 2026</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-key">Subject</span>
+              <span class="meta-val" id="resRawSubject">Q3 Distributed Pipeline Architecture</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-key">Clean Word Count</span>
+              <span class="meta-val" id="resWordCount">142 words</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Hero Attachments Section -->
+      <div class="attachments-section" id="resAttachmentsSection">
+        <div class="attachments-header">
+          <div class="att-title-group">
+            <div class="att-icon-badge">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+            </div>
+            <div>
+              <h3 class="att-heading">Stripped Attachments</h3>
+              <p class="att-subheading" id="resAttachmentStats">3 files extracted • 1.4 MB total</p>
+            </div>
+          </div>
+
+          <div class="att-header-actions">
+            <a class="btn btn-download-all" id="downloadAllZipBtn" href="#" download>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Download All as .ZIP
+            </a>
+          </div>
+        </div>
+
+        <!-- Attachment Cards Grid -->
+        <div class="attachments-grid" id="attachmentsGrid">
+          <!-- Dynamically populated -->
+        </div>
+      </div>
+
+      <!-- Cleaned Email Body Inspector (Collapsible) -->
+      <details class="body-inspector" id="bodyInspector">
+        <summary class="inspector-summary">
+          <span>Peek Inside: Cleaned Body & Content Preview</span>
+          <svg class="chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+        </summary>
+        <div class="inspector-content">
+          <div class="inspector-tabs">
+            <button class="inspector-tab active" id="tabBodyText">Clean Plain Text</button>
+            <button class="inspector-tab" id="tabBodyHtml">Sanitized HTML</button>
+          </div>
+          <div class="inspector-panel" id="panelBodyText">
+            <pre class="code-preview" id="resBodyText"></pre>
+          </div>
+          <div class="inspector-panel" id="panelBodyHtml" style="display:none;">
+            <div class="html-preview" id="resBodyHtml"></div>
+          </div>
+        </div>
+      </details>
+    </section>
+  </main>
+
+  <!-- Preview Modal Dialog -->
+  <dialog class="preview-modal" id="previewModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h4 class="modal-title" id="modalFileName">File Preview</h4>
+        <div class="modal-actions">
+          <a class="btn btn-primary btn-sm" id="modalDownloadBtn" href="#" download>Download</a>
+          <button class="btn-close" id="closeModalBtn" aria-label="Close">✕</button>
+        </div>
+      </div>
+      <div class="modal-body" id="modalBody">
+        <!-- Image, Text, or iframe -->
+      </div>
+    </div>
+  </dialog>
+
+  <footer class="app-footer">
+    <div class="footer-inner">
+      <p>mailStripper — Powered by .NET 10 &amp; MimeKit by Jeffrey Stedfast (<a href="https://github.com/jstedfast/MimeKit" target="_blank" rel="noopener">jstedfast/MimeKit</a>).</p>
+      <p class="footer-sub">Cleanly strips MIME trees, disclaimers, and reply chains into pure intent &amp; attachments.</p>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
