@@ -157,6 +157,11 @@ Lead Security Auditor`;
       execSync(`"${ffmpegPath}" -y -i "${latestVideo}" -c:v libx264 -pix_fmt yuv420p -movflags +faststart "${destMp4}"`, { stdio: 'inherit' });
       const stats = fs.statSync(destMp4);
       console.log(`\n🎉 Demo video recorded and saved to: ${destMp4} (${(stats.size / (1024 * 1024)).toFixed(2)} MB)\n`);
+
+      console.log(`Generating zero-click animated demo.gif for GitHub README...`);
+      const destGif = path.join(repoRoot, 'demo.gif');
+      execSync(`"${ffmpegPath}" -y -i "${destMp4}" -vf "fps=10,scale=800:-1:flags=lanczos,split[s0][s1];[s0]palettegen=max_colors=128[p];[s1][p]paletteuse=dither=bayer" "${destGif}"`, { stdio: 'inherit' });
+      console.log(`🎉 Demo GIF generated and saved to: ${destGif} (${(fs.statSync(destGif).size / (1024 * 1024)).toFixed(2)} MB)\n`);
     } catch (e) {
       console.warn('FFmpeg conversion error or not found. Kept raw recording:', e.message);
       fs.copyFileSync(latestVideo, destMp4.replace('.mp4', '.webm'));

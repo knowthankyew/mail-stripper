@@ -27,13 +27,15 @@ Clone the repository and run one command:
 
 ---
 
-## 📺 Interactive Video Demonstration
+## 📺 Interactive Walkthrough (Zero Clicks)
 
-Watch the complete automated demonstration—from local-only privacy audits and file guardrails to attachment downloads and raw text parsing:
+![mailStripper Automated Walkthrough](demo.gif)
 
-> **Recorded Demonstration**: [demo.mp4](demo.mp4) *(High-definition Playwright automated recording, 35s, 1366x860)*
+<video src="https://github.com/knowthankyew/mail-stripper/raw/main/demo.mp4" controls autoplay loop muted playsinline width="100%"></video>
+
+> 📹 **High-Definition Recording**: [`demo.mp4`](demo.mp4) *(Playwright automated run, 35s, 1366x860)*
 >
-> To regenerate this demonstration at any time, run: `./scripts/record-demo.sh`
+> To regenerate this recording at any time, run: `./scripts/record-demo.sh`
 
 ---
 
