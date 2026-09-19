@@ -40,3 +40,12 @@ jobs:
 
       - name: Audit npm Vulnerabilities
         run: npm audit --audit-level=high
+
+      - name: Generate CycloneDX SBOM
+        run: npx --yes @cyclonedx/cdxgen -o bom.json
+
+      - name: Upload SBOM Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-mailstripper-cyclonedx
+          path: bom.json
