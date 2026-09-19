@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  validate:
+    name: Build, Test & Security Audit
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore .NET Dependencies
+        run: dotnet restore mailStripper.slnx
+
+      - name: Audit NuGet Vulnerabilities
+        run: dotnet list package --vulnerable --include-transitive
+
+      - name: Run .NET Unit Tests
+        run: dotnet test mailStripper.slnx --no-restore
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install Node Dependencies
+        run: npm ci
+
+      - name: Audit npm Vulnerabilities
+        run: npm audit --audit-level=high
