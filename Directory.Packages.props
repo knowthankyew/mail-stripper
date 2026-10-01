@@ -4,7 +4,7 @@
   </PropertyGroup>
   <ItemGroup>
     <!-- Core Dependencies -->
-    <PackageVersion Include="MimeKit" Version="4.18.0" />
+    <PackageVersion Include="MimeKit" Version="4.18.1" />
 
     <!-- Test Dependencies -->
     <PackageVersion Include="coverlet.collector" Version="10.0.1" />
