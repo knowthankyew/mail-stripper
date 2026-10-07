@@ -1,7 +1,61 @@
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 const { execSync } = require('child_process');
-const { chromium } = require('playwright-core');
+
+function resolvePlaywright(repoRoot) {
+  const candidates = [
+    'playwright-core',
+    'playwright',
+    '@playwright/test',
+    path.resolve(repoRoot, '../node_modules/playwright-core'),
+    path.resolve(repoRoot, '../node_modules/playwright'),
+    path.resolve(repoRoot, '../node_modules/@playwright/test'),
+  ];
+  for (const c of candidates) {
+    try {
+      const mod = require(c);
+      if (mod.chromium) return mod.chromium;
+    } catch {}
+  }
+  throw new Error('Playwright not found in repo or portfolio root. Run npm install at repo or portfolio root.');
+}
+
+function resolveFfmpeg(repoRoot) {
+  if (process.env.FFMPEG_PATH && fs.existsSync(process.env.FFMPEG_PATH)) {
+    return process.env.FFMPEG_PATH;
+  }
+  try {
+    const sys = execSync('which ffmpeg', { encoding: 'utf8' }).trim();
+    if (sys && fs.existsSync(sys)) return sys;
+  } catch {}
+
+  const standardPaths = [
+    '/opt/homebrew/bin/ffmpeg',
+    '/usr/local/bin/ffmpeg',
+    path.resolve(repoRoot, '../node_modules/ffmpeg-static/ffmpeg'),
+    path.resolve(repoRoot, 'node_modules/ffmpeg-static/ffmpeg'),
+  ];
+  for (const p of standardPaths) {
+    if (fs.existsSync(p)) return p;
+  }
+
+  try {
+    const ffmpegStatic = require('ffmpeg-static');
+    if (ffmpegStatic && fs.existsSync(ffmpegStatic)) return ffmpegStatic;
+  } catch {}
+
+  const cacheDir = path.join(os.homedir(), 'Library/Caches/ms-playwright');
+  if (fs.existsSync(cacheDir)) {
+    for (const entry of fs.readdirSync(cacheDir)) {
+      if (entry.startsWith('ffmpeg-')) {
+        const bin = path.join(cacheDir, entry, 'ffmpeg-mac');
+        if (fs.existsSync(bin)) return bin;
+      }
+    }
+  }
+  return null;
+}
 
 async function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -9,6 +63,7 @@ async function sleep(ms) {
 
 (async () => {
   const repoRoot = path.resolve(__dirname, '..');
+  const chromium = resolvePlaywright(repoRoot);
   const tempVideoDir = path.join(repoRoot, '.temp_demo_videos');
   if (!fs.existsSync(tempVideoDir)) fs.mkdirSync(tempVideoDir, { recursive: true });
 
@@ -139,18 +194,8 @@ Lead Security Auditor`;
     const latestVideo = path.join(tempVideoDir, videoFiles[videoFiles.length - 1]);
     const destMp4 = path.join(repoRoot, 'demo.mp4');
 
-    let ffmpegPath = 'ffmpeg';
-    const candidatePaths = [
-      '/opt/homebrew/bin/ffmpeg',
-      '/usr/local/bin/ffmpeg',
-      '/Users/cl0rkster/Dev/ml/src/FtaaSService.Worker/.venv/lib/python3.12/site-packages/imageio_ffmpeg/binaries/ffmpeg-macos-x86_64-v7.1'
-    ];
-    for (const p of candidatePaths) {
-      if (fs.existsSync(p)) {
-        ffmpegPath = p;
-        break;
-      }
-    }
+    const ffmpegPath = resolveFfmpeg(repoRoot) || 'ffmpeg';
+
 
     try {
       console.log(`Converting recording to web-optimized MP4 (H.264)...`);
