@@ -484,3 +484,6 @@ $RECYCLE.BIN/
 .DS_Store
 node_modules/
 .temp_demo_videos/
+
+# Agent Steering & Local Specs
+.kiro/
