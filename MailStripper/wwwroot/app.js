@@ -641,9 +641,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function sanitizeHtmlPreview(html) {
     const doc = new DOMParser().parseFromString(html, 'text/html');
-    // Remove dangerous scripts and iframes
-    doc.querySelectorAll('script, iframe, object, embed').forEach(el => el.remove());
-    // Ensure all links open safely in new tab
+    // Remove dangerous scripts, iframes, objects, embeds, base, meta, and forms
+    doc.querySelectorAll('script, iframe, object, embed, base, meta, form').forEach(el => el.remove());
+    // Strip all inline on* event handler attributes and javascript: URLs
+    const allElements = doc.querySelectorAll('*');
+    allElements.forEach(el => {
+      for (const attr of Array.from(el.attributes)) {
+        const attrName = attr.name.toLowerCase();
+        if (attrName.startsWith('on')) {
+          el.removeAttribute(attr.name);
+        } else if ((attrName === 'href' || attrName === 'src') && /^\s*javascript:/i.test(attr.value)) {
+          el.removeAttribute(attr.name);
+        }
+      }
+    });
+    // Ensure all remaining links open safely in new tab
     doc.querySelectorAll('a').forEach(a => {
       a.setAttribute('target', '_blank');
       a.setAttribute('rel', 'noopener noreferrer');

@@ -41,6 +41,9 @@ jobs:
       - name: Audit npm Vulnerabilities
         run: npm audit --audit-level=high
 
+      - name: Audit Claims & Architectural Invariants
+        run: npm run audit:claims
+
       - name: Generate CycloneDX SBOM
         run: npx --yes @cyclonedx/cdxgen -o bom.json
 

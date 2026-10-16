@@ -1,0 +1,90 @@
+# CodeRabbit Configuration for mailStripper
+# Targeted Audit Scope: In-Memory Volatile Email Sanitization, Zero-Egress Air-Gap, MimeKit Security & Supply Chain Assurance
+
+language: "en-US"
+
+reviews:
+  profile: "assertive"
+  request_changes_workflow: false
+  high_level_summary: true
+  poem: false
+  sequence_diagrams: true
+  auto_review:
+    enabled: true
+    drafts: false
+
+  # Filter out compiled binaries, demo media, and lockfiles
+  path_filters:
+    - "!**/*.gif"
+    - "!**/*.mp4"
+    - "!**/*.webm"
+    - "!**/*.png"
+    - "!**/bin/**"
+    - "!**/obj/**"
+    - "!package-lock.json"
+    - "!bom.json"
+
+  path_instructions:
+    - path: "**/*"
+      instructions: |
+        You are performing an exhaustive architectural, security, and data privacy audit for "mailStripper", a high-performance .NET 10 email sanitization and ingestion plane built on MimeKit.
+        The application operates under strict zero-egress, volatile in-memory constraints to neutralize tracking pixels, strip sensitive headers, and extract clean metadata.
+
+        Evaluate all code against these non-negotiable architectural invariants:
+
+        1. ZERO EXTERNAL NETWORK EGRESS & CSP INTEGRITY (CRITICAL):
+           - In production runtime, the application must never transmit email data, attachments, or analytics to external servers.
+           - Enforce strict Content Security Policy (`connect-src 'self' http://localhost:8000;`, `object-src 'none'`, `frame-ancestors 'none'`). External outbound network primitives (`fetch` to remote origins, external font/image CDNs, third-party analytics) are strictly prohibited.
+           - Loopback communication is permitted strictly and exclusively to `http://localhost:8000` for optional local generative AI summaries provided by `event-driven-ftaas` (SmolLM2-135M).
+
+        2. 100% VOLATILE IN-MEMORY PROCESSING & ZERO DISK LEAKAGE (CRITICAL):
+           - All email stream parsing, attachment decodings, and zip bundles must reside strictly in volatile RAM (`MemoryStream`, `ConcurrentDictionary`).
+           - Prohibit writing parsed email bodies, decoded attachments, or session temp files to disk or `/tmp`.
+           - Memory buffers must be aggressively bounded and isolated per session to prevent memory exhaustion.
+
+        3. FAIL-CLOSED EMAIL VALIDATION & ATTACK DEFENSE:
+           - Enforce strict upload limits (maximum 50 MB body size cap configured via `SecurityConstants.MaxUploadSizeBytes` and Kestrel request body bounds).
+           - Malformed RFC 822 emails, corrupted zip archives, or pathological nested MIME trees must be rejected fail-closed without server crashes or unhandled exceptions.
+           - Neutralize tracking pixels (`1x1` images, zero-byte tracking URLs) and strip invasive metadata headers (`X-Mailer`, `User-Agent`, `Received` hops where requested).
+
+        4. RESILIENT HYBRID SUMMARIZATION:
+           - The offline extractive summarizer (`ExtractiveEmailSummarizer`) must function 100% autonomously without external services.
+           - `MlHybridSummarizer` must probe `http://localhost:8000/healthz` with a strict fail-closed timeout (1.2 seconds) and silently fall back to extractive summarization if the local LLM microservice is unreachable or errors.
+
+        5. CRYPTOGRAPHIC PRIVACY AUDITING:
+           - `PrivacyAuditService` must inspect active TCP connections, verify air-gapped status, verify volatile storage policy, and return a tamper-evident SHA-256 verification hash at `GET /api/strip/privacy-audit`.
+
+        6. SUPPLY CHAIN ASSURANCE & CENTRAL PACKAGE MANAGEMENT (CPM):
+           - Centrally manage package versions in `Directory.Packages.props` (`<ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>`).
+           - `Directory.Build.props` must enforce fail-closed NuGet security auditing (`<WarningsAsErrors>$(WarningsAsErrors);NU1903;NU1904</WarningsAsErrors>`).
+           - Produce CycloneDX SBOMs on build in CI with zero high/critical vulnerabilities.
+
+    - path: "MailStripper/Security/**"
+      instructions: "Audit Content Security Policy definitions, Kestrel request limits (50 MB), and strict HTTP security response headers."
+
+    - path: "MailStripper/Services/**"
+      instructions: "Audit `MemoryAttachmentStore` for zero disk writes, `MimeKitEmailParser` for ReDoS/MIME parsing safety, `MlHybridSummarizer` for fail-closed loopback timeouts, and `PrivacyAuditService` for TCP socket enumeration safety."
+
+    - path: "MailStripper/Endpoints/**"
+      instructions: "Audit ASP.NET Core Minimal APIs for parameter binding validation, multipart form safety, and appropriate error status codes."
+
+    - path: "MailStripper/wwwroot/**"
+      instructions: "Audit vanilla JS and HTML for safe DOM manipulations, zero unescaped HTML interpolation (`textContent` over `innerHTML`), and zero remote asset references."
+
+    - path: "MailStripper.Tests/**"
+      instructions: "Audit xUnit test suite for coverage of air-gapped guarantees, zero temp disk writes, MIME edge cases, and summarizer fallbacks."
+
+    - path: "scripts/**"
+      instructions: "Audit claims and architectural invariant linting scripts for static analysis correctness and Portfolio Master Brief parity."
+
+knowledge_base:
+  opt_out: false
+  learnings:
+    scope: "auto"
+  linked_repositories:
+    - repository: "knowthankyew/portfolio-admin"
+      instructions: "Contains portfolio integration standards, Master Brief assertions, and cross-repository audit specifications."
+    - repository: "knowthankyew/privacy-telemetry"
+      instructions: "Contains shared core privacy telemetry schemas and zero-egress architectural invariants."
+    - repository: "knowthankyew/event-driven-ftaas"
+      instructions: "Local LLM inference microservice running on loopback (http://localhost:8000) providing optional generative email titles."
