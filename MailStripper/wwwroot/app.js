@@ -497,7 +497,14 @@ document.addEventListener('DOMContentLoaded', () => {
       };
     } else {
       // Text or CSV
-      fetch(att.previewUrl)
+      const previewUrl = typeof att.previewUrl === 'string' && att.previewUrl.startsWith('/api/strip/')
+        ? att.previewUrl
+        : null;
+      if (!previewUrl) {
+        modalBody.innerHTML = '<p style="color:#f43f5e;">Invalid preview endpoint.</p>';
+        return;
+      }
+      fetch(previewUrl)
         .then(res => res.text())
         .then(txt => {
           modalBody.innerHTML = '';

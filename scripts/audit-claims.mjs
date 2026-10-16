@@ -4,12 +4,12 @@
  *
  * Enforces:
  * 1. Zero External Network Egress & CSP Integrity:
- *    - Verifies SecurityConstants.ContentSecurityPolicy restricts connect-src to 'self' and http://localhost:8000.
- *    - Verifies Program.cs attaches strict HTTP security response headers and X-Local-Only-Guarantee.
- *    - Verifies wwwroot/app.js makes zero external outbound network requests.
+ *    - Verifies SecurityConstants.ContentSecurityPolicy strictly restricts connect-src to 'self' and http://localhost:8000.
+ *    - Verifies Program.cs attaches exact HTTP security response headers and X-Local-Only-Guarantee values.
+ *    - Verifies wwwroot/app.js makes zero unauthorized external network requests and uses only approved local endpoints.
  * 2. 100% Volatile In-Memory Processing & Zero Disk Leakage:
  *    - Verifies MemoryAttachmentStore uses in-memory streams and stores.
- *    - Verifies MailStripper source code contains zero file writes or temp file creation on disk.
+ *    - Verifies MailStripper source code contains zero synchronous or asynchronous disk write APIs.
  * 3. Max Upload Size & Body Budgeting:
  *    - Verifies 50 MB upload limit cap in SecurityConstants and Program.cs Kestrel configuration.
  * 4. Privacy Audit Service & Cryptographic Verification:
@@ -21,12 +21,13 @@
  * 6. Vocabulary Guardrails:
  *    - Prohibits unprovable marketing adjectives ('bulletproof', 'conclusive', 'definitive', 'infinitely scalable').
  * 7. Portfolio Master Brief Parity:
- *    - Verifies that KNOWTHANKYEW_PORTFOLIO_MASTER_BRIEF.md accurately reflects current mailStripper test count.
+ *    - Dynamically measures actual unit test count across MailStripper.Tests and verifies parity with the Brief.
  */
 
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { execSync } from 'node:child_process';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -59,24 +60,40 @@ export function auditZeroEgress(errors = []) {
   }
 
   const secConstContent = readFileSync(secConstPath, 'utf-8');
-  if (!secConstContent.includes("connect-src 'self' http://localhost:8000;")) {
-    errors.push("SecurityConstants.ContentSecurityPolicy violation: connect-src must allow only 'self' and loopback http://localhost:8000.");
-  }
-  if (!secConstContent.includes("object-src 'none';") || !secConstContent.includes("frame-ancestors 'none';")) {
-    errors.push("SecurityConstants.ContentSecurityPolicy violation: object-src and frame-ancestors must be set to 'none'.");
+  const cspMatch = secConstContent.match(/ContentSecurityPolicy\s*=\s*"([^"]+)";/);
+  if (!cspMatch) {
+    errors.push('Could not find ContentSecurityPolicy constant assignment in SecurityConstants.cs');
+  } else {
+    const csp = cspMatch[1];
+    if (!csp.includes("connect-src 'self' http://localhost:8000;")) {
+      errors.push("SecurityConstants.ContentSecurityPolicy violation: connect-src must allow strictly 'self' and loopback http://localhost:8000;");
+    }
+    if (!csp.includes("object-src 'none';") || !csp.includes("frame-ancestors 'none';")) {
+      errors.push("SecurityConstants.ContentSecurityPolicy violation: object-src and frame-ancestors must be set to 'none'.");
+    }
+    if (!csp.includes("script-src 'self';")) {
+      errors.push("SecurityConstants.ContentSecurityPolicy violation: script-src must be set to 'self' without 'unsafe-inline'.");
+    }
   }
 
   const progContent = readFileSync(progPath, 'utf-8');
-  const requiredHeaders = [
-    'Content-Security-Policy',
-    'X-Content-Type-Options',
-    'X-Frame-Options',
-    'Referrer-Policy',
-    'X-Local-Only-Guarantee',
+  const expectedHeaderAssignments = [
+    { name: 'Content-Security-Policy', expectedValue: 'SecurityConstants.ContentSecurityPolicy' },
+    { name: 'X-Content-Type-Options', expectedValue: '"nosniff"' },
+    { name: 'X-Frame-Options', expectedValue: '"DENY"' },
+    { name: 'Referrer-Policy', expectedValue: '"no-referrer"' },
+    { name: 'X-Local-Only-Guarantee', expectedValue: '"Air-Gapped: Zero External Egress | In-Memory Processing"' },
   ];
-  for (const hdr of requiredHeaders) {
-    if (!progContent.includes(`"${hdr}"`)) {
-      errors.push(`MailStripper/Program.cs missing required security header injection: "${hdr}"`);
+
+  function escapeRegExp(str) {
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  for (const { name, expectedValue } of expectedHeaderAssignments) {
+    const escapedValue = escapeRegExp(expectedValue);
+    const pattern = new RegExp(`context\\.Response\\.Headers\\.Append\\("${escapeRegExp(name)}",\\s*${escapedValue}\\)`);
+    if (!pattern.test(progContent)) {
+      errors.push(`MailStripper/Program.cs missing exact security header assignment: Append("${name}", ${expectedValue})`);
     }
   }
 
@@ -86,10 +103,29 @@ export function auditZeroEgress(errors = []) {
     lines.forEach((line, idx) => {
       const trimmed = line.trim();
       if (trimmed.startsWith('//') || trimmed.startsWith('*') || trimmed.startsWith('/*')) return;
-      if (/\bfetch\s*\(\s*['"]https?:\/\/(?!localhost:8000)/.test(line)) {
-        errors.push(`MailStripper/wwwroot/app.js:${idx + 1}: Unauthorized external outbound fetch detected: ${trimmed}`);
+
+      // Reject forbidden outbound browser APIs
+      if (/\b(XMLHttpRequest|navigator\.sendBeacon|new\s+WebSocket|new\s+EventSource)\b/.test(line)) {
+        errors.push(`MailStripper/wwwroot/app.js:${idx + 1}: Forbidden outbound network primitive detected: ${trimmed}`);
       }
+
     });
+
+    // Validate all fetch() invocations in app.js target local/relative endpoints only (including multiline)
+    const globalFetchMatches = appJsContent.matchAll(/\bfetch\s*\(\s*([^,\)]+)/gs);
+    for (const match of globalFetchMatches) {
+      const destArg = match[1].trim();
+      const lineNum = appJsContent.substring(0, match.index).split('\n').length;
+      const isApprovedLiteral =
+        /^(?:['"`])\/api\/strip\/[^'"`]*['"`]$/.test(destArg) ||
+        /^(?:['"`])http:\/\/localhost:8000\/healthz['"`]$/.test(destArg);
+      const isValidatedLocalVar =
+        destArg === 'previewUrl' && appJsContent.includes("previewUrl.startsWith('/api/strip/')");
+
+      if (!isApprovedLiteral && !isValidatedLocalVar) {
+        errors.push(`MailStripper/wwwroot/app.js:${lineNum}: Outbound fetch() destination is not an approved local endpoint: ${destArg}`);
+      }
+    }
   }
 }
 
@@ -108,7 +144,7 @@ export function auditVolatileMemoryStorage(errors = []) {
     errors.push('MemoryAttachmentStore must use ConcurrentDictionary and MemoryStream for volatile retention.');
   }
 
-  // Scan all source files in MailStripper (excluding tests) for disk writing primitives
+  // Scan all source files in MailStripper (excluding tests) for sync and async disk writing APIs
   const msDir = resolve(REPO_ROOT, 'MailStripper');
   function scanDir(dir) {
     const entries = readdirSync(dir, { withFileTypes: true });
@@ -125,10 +161,13 @@ export function auditVolatileMemoryStorage(errors = []) {
           const trimmed = line.trim();
           if (trimmed.startsWith('//') || trimmed.startsWith('*') || trimmed.startsWith('/*')) return;
           if (
-            /\bFile\.(?:WriteAllBytes|WriteAllText|WriteAllLines|Create|OpenWrite)\b/.test(line) ||
-            /\bnew\s+FileStream\s*\([^,]+,\s*FileMode\.(?:Create|CreateNew|OpenOrCreate|Append)/.test(line)
+            /\bFile\.(?:WriteAllBytes|WriteAllBytesAsync|WriteAllText|WriteAllTextAsync|WriteAllLines|WriteAllLinesAsync|Create|CreateText|OpenWrite|Open|Copy|Move|AppendAllText|AppendAllTextAsync|AppendAllLines|AppendAllLinesAsync|AppendText)\b/.test(line) ||
+            /\bPath\.GetTempFileName\b/.test(line) ||
+            /\bnew\s+FileStream\s*\([^,]+,\s*FileMode\.(?:Create|CreateNew|OpenOrCreate|Append|Truncate)/.test(line) ||
+            /\bnew\s+StreamWriter\s*\(\s*(?!\w*(?:Stream|stream)\b)[^)]/.test(line) ||
+            /\bnew\s+BinaryWriter\s*\(\s*(?!\w*(?:Stream|stream)\b)[^)]/.test(line)
           ) {
-            errors.push(`Zero-disk privacy violation in ${fullPath.replace(REPO_ROOT + '/', '')}:${idx + 1}: Detected disk file write: ${trimmed}`);
+            errors.push(`Zero-disk privacy violation in ${fullPath.replace(REPO_ROOT + '/', '')}:${idx + 1}: Detected disk file write API: ${trimmed}`);
           }
         });
       }
@@ -287,20 +326,52 @@ export function auditPortfolioMasterBrief(errors = [], { requireBrief = false } 
     return false;
   }
 
-  const documentedTotal = parseInt(match[1], 10);
+  const docPassed = parseInt(match[1], 10);
+  const docTotal = parseInt(match[2], 10);
 
-  // Count unit tests from dotnet test output or test cases
-  // MailStripper.Tests has 31 total passing test executions
-  const expectedTotal = 31;
-
-  if (documentedTotal !== expectedTotal) {
-    errors.push(
-      `Portfolio Brief Drift: KNOWTHANKYEW_PORTFOLIO_MASTER_BRIEF.md documents ${documentedTotal}/${documentedTotal} tests, but actual suite executes ${expectedTotal} unit tests.`
-    );
+  if (docPassed !== docTotal) {
+    errors.push(`KNOWTHANKYEW_PORTFOLIO_MASTER_BRIEF.md documents passing mismatch: ${docPassed}/${docTotal}`);
     return false;
   }
 
-  return true;
+  // Establish verified passed test count directly by executing the test suite
+  let actualPassedCount = 0;
+  let actualTotalCount = 0;
+  try {
+    const testOutput = execSync('dotnet test mailStripper.slnx', {
+      cwd: REPO_ROOT,
+      encoding: 'utf-8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    const passedMatch = testOutput.match(/Passed!\s+-\s+Failed:\s+(\d+),\s+Passed:\s+(\d+),\s+Skipped:\s+(\d+),\s+Total:\s+(\d+)/);
+    if (!passedMatch) {
+      errors.push('Unable to parse test execution output from dotnet test mailStripper.slnx');
+      return null;
+    }
+    const failed = parseInt(passedMatch[1], 10);
+    const passed = parseInt(passedMatch[2], 10);
+    const skipped = parseInt(passedMatch[3], 10);
+    const total = parseInt(passedMatch[4], 10);
+
+    if (failed > 0) {
+      errors.push(`Test suite failure: ${failed} tests failed during execution.`);
+      return null;
+    }
+    actualPassedCount = passed;
+    actualTotalCount = total;
+  } catch (err) {
+    errors.push(`Test execution failed or dotnet test runner was unable to run: ${err.message}`);
+    return null;
+  }
+
+  if (docPassed !== actualPassedCount || docTotal !== actualTotalCount) {
+    errors.push(
+      `Portfolio Brief Drift: KNOWTHANKYEW_PORTFOLIO_MASTER_BRIEF.md documents ${docPassed}/${docTotal} passing tests, but test runner executed ${actualPassedCount}/${actualTotalCount} passing tests.`
+    );
+    return null;
+  }
+
+  return { passedCount: actualPassedCount, totalCount: actualTotalCount };
 }
 
 /**
@@ -340,7 +411,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   console.log('  ✓ Central Package Management (CPM) & patched System.Security.Cryptography.Pkcs 10.0.13 verified');
   console.log('  ✓ Zero prohibited marketing adjectives detected in documentation');
   if (briefChecked) {
-    console.log('  ✓ Portfolio Master Brief parity verified (31/31 unit tests)');
+    console.log(`  ✓ Portfolio Master Brief dynamic test parity verified (${briefChecked.passedCount}/${briefChecked.totalCount} unit tests)`);
   } else {
     console.log('  - Portfolio Master Brief check skipped (isolated CI)');
   }
