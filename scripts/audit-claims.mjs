@@ -36,7 +36,8 @@ const REPO_ROOT = resolve(__dirname, '..');
 const DEV_ROOT = resolve(REPO_ROOT, '..');
 
 const PROHIBITED_WORDS = [
-  /\bbulletproof\b/i,
+  /\bbullet-?proof\b/i,
+  /\brock\s+solid\b/i,
   /\bconclusive\b/i,
   /\bdefinitive\b/i,
   /\binfinitely scalable\b/i,
@@ -272,9 +273,17 @@ export function auditCentralPackageManagement(errors = []) {
 export function auditVocabulary(errors = []) {
   const docsToCheck = [
     resolve(REPO_ROOT, 'README.md'),
-    resolve(REPO_ROOT, 'NOTICE.md'),
-    resolve(REPO_ROOT, 'docs/ARCHITECTURE.md'),
+    resolve(REPO_ROOT, 'ROADMAP.md'),
+    resolve(REPO_ROOT, 'ARCHITECTURE.md'),
   ];
+  const docsDir = resolve(REPO_ROOT, 'docs');
+  if (existsSync(docsDir)) {
+    for (const entry of readdirSync(docsDir)) {
+      if (entry.endsWith('.md')) {
+        docsToCheck.push(resolve(docsDir, entry));
+      }
+    }
+  }
 
   for (const docPath of docsToCheck) {
     if (!existsSync(docPath)) continue;
