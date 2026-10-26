@@ -115,10 +115,10 @@ export function auditZeroEgress(errors = []) {
       const stripped = stripLineComment(line).trim();
       if (!stripped || stripped.startsWith('*')) return;
 
-      // Reject forbidden outbound browser primitives using shared core
+      // Reject forbidden outbound browser primitives using shared core (including aliased/computed fetch)
       if (testNetworkPrimitive(stripped)) {
         const nonFetchForbiddenRegex =
-          /(?:\b(?:XMLHttpRequest|axios)\b|\[\s*['"`](?:XMLHttpRequest|sendBeacon|WebSocket|EventSource|axios)['"`]\s*\]|\bnavigator\s*(?:\??\.\s*sendBeacon|\[\s*['"`]sendBeacon['"`]\s*\])|\bnew\s+(?:WebSocket|EventSource|Image)\b|\bnew\s+Worker\s*\(\s*(?:new\s+URL\s*\(\s*)?['"`]https?:\/\/|\bimport\s*\(\s*['"`]https?:\/\/|\bdocument\s*(?:\??\.\s*createElement|\[\s*['"`]createElement['"`]\s*\])\s*\(\s*['"`]script['"`]\s*\))/;
+          /(?:=\s*fetch\b|\??\.\s*fetch\s*\(|\b(?:XMLHttpRequest|axios)\b|\[\s*['"`](?:fetch|XMLHttpRequest|sendBeacon|WebSocket|EventSource|axios)['"`]\s*\]|\bnavigator\s*(?:\??\.\s*sendBeacon|\[\s*['"`]sendBeacon['"`]\s*\])|\bnew\s+(?:WebSocket|EventSource|Image)\b|\bnew\s+Worker\s*\(\s*(?:new\s+URL\s*\(\s*)?['"`]https?:\/\/|\bimport\s*\(\s*['"`]https?:\/\/|\bdocument\s*(?:\??\.\s*createElement|\[\s*['"`]createElement['"`]\s*\])\s*\(\s*['"`]script['"`]\s*\)|\b(?:window|globalThis|self)\s*(?:\.\s*fetch|\[\s*['"`]fetch['"`]\s*\]))/;
         if (nonFetchForbiddenRegex.test(stripped)) {
           errors.push(`MailStripper/wwwroot/app.js:${idx + 1}: Forbidden outbound network primitive detected: ${stripped}`);
         }
