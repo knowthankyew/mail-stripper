@@ -1,103 +1,107 @@
 <!-- diagram-meta
-  last-validated: 2026-10-19
+  last-validated: 2026-10-25
   covers: [MailStripper/**, MailStripper.Tests/**]
   generated-by: manual
 -->
 
-# Architecture & Invariants Specification: MailStripper Unsubscribe Engine
+# Architecture & Invariants Specification: MailStripper Engine
 
-> Headless Playwright automation agent, CAN-SPAM Act verifier, and predatory dark-pattern email unsubscriber.
+> High-performance .NET 10 email privacy utility, tracking pixel stripper, volatile in-memory attachment extractor, and zero-egress reality engine.
 
 ---
 
 ## 1. Executive Summary
 
-`mailStripper` is a specialized automation reality engine in the `knowthankyew` portfolio built to dismantle dark patterns in commercial marketing emails. Using .NET 10 and Playwright headless Chromium, it navigates labyrinthine unsubscribe flows, completes multi-step confirmation sequences, validates adherence to federal CAN-SPAM rules (15 U.S.C. § 7704) and FTC Click-to-Cancel standards, captures cryptographic screenshot evidence of completion, and terminates with zero residual cookie or credential storage.
+`mailStripper` is a specialized email ingestion and privacy reality engine in the `knowthankyew` portfolio built to dismantle tracking pixels, strip intrusive marketing telemetry, parse nested MIME/RFC 822 trees, and provide rapid extractive summaries. Built on .NET 10 and Jeffrey Stedfast's industry-standard `MimeKit` library, it operates with strict zero disk storage (all decoded bodies and attachments reside strictly in transient `MemoryStream` RAM), zero external egress (air-gapped Content Security Policy), zero telemetry, and an optional zero-config local sidecar integration with `event-driven-ftaas` (`SmolLM2-135M` at `http://localhost:8000`).
 
 ---
 
 ## 2. System Architecture & Component Interactions
 
-### A. Execution Sandbox & Isolation Architecture
+### A. Execution Sandbox & Processing Architecture
 
 ```mermaid
 flowchart TD
-    subgraph ClientLayer["1. Ingestion & Trigger"]
-        User["👤 Consumer / Email Client"]
-        Request["📨 Raw Email / Unsubscribe Link Submission"]
+    subgraph ClientLayer["1. Ingestion & Web Presentation (:5001)"]
+        User["👤 Consumer / Web Browser"]
+        ClientApp["💻 Single-Page Interface<br/><code>MailStripper/wwwroot/app.js</code>"]
+        APIClient["📡 REST API Client (Curl / Automations)"]
     end
 
-    subgraph ServiceCore["2. .NET 10 Engine Core (:5200)"]
-        API[".NET 10 API Gateway<br/><code>Endpoints/UnsubscribeEndpoints.cs</code>"]
-        Parser["📧 Email & Header Parser<br/><code>Services/EmailParser.ts</code>"]
-        Navigator["🤖 Playwright Flow Orchestrator<br/><code>Services/PlaywrightService.cs</code>"]
-        Telemetry["🛡️ KnowThankYew.Privacy.Telemetry<br/><i>(ActivitySource + Ring Buffer)</i>"]
+    subgraph ServiceCore["2. .NET 10 Ingestion Plane Core (:5001)"]
+        API[".NET 10 Minimal API Gateway<br/><code>MailStripper/Endpoints/StripEndpoints.cs</code>"]
+        Parser["📧 MIME & Tracking Stripper<br/><code>MailStripper/Services/MimeKitEmailParser.cs</code>"]
+        Validator["🛡️ Security & Size Validator<br/><code>MailStripper/Services/EmailValidator.cs</code>"]
+        MemStore["💾 Volatile RAM Attachment Store<br/><code>MailStripper/Services/MemoryAttachmentStore.cs</code>"]
+        Summarizer["📝 Extractive & Hybrid Summarizer<br/><code>MailStripper/Services/ExtractiveEmailSummarizer.cs</code>"]
+        PrivacyAudit["🔒 Live Cryptographic Auditor<br/><code>MailStripper/Services/PrivacyAuditService.cs</code>"]
     end
 
-    subgraph HeadlessBrowser["3. Ephemeral Chromium Sandbox"]
-        Context["🔒 Isolated Browser Context<br/><i>(Unique User Data Dir)</i>"]
-        PageNav["🌐 Page Navigation & Dark Pattern Bypass"]
-        FormFiller["📝 One-Click Form / Radio Handler"]
-        ScreenshotTaker["📷 Visual Evidence Capturer"]
+    subgraph Sidecar["3. Optional Local ML Sidecar (Isolated)"]
+        MLSidecar["🤖 SmolLM2-135M Microservice<br/><i>http://localhost:8000/api/v1/inference/generate</i>"]
     end
 
-    subgraph OutputAndPurge["4. Evidence & Amnesiac Wipe"]
-        Proof["🖼️ Visual Screenshot Audit Trail"]
-        AmnesiaPurge["🔥 Context.DisposeAsync()<br/><i>(Purges Cookies, Cache & Storage)</i>"]
+    subgraph Output["4. Sanitized Delivery & Ephemeral Purge"]
+        CleanResult["📋 Sanitized JSON + Clean Text Body"]
+        Attachments["📎 Volatile Attachments (RAM Only / Zip Bundle)"]
+        AuditEndpoint["🛡️ Real-time Socket & Zero-Disk Fingerprint"]
     end
 
     %% Flow
-    User -->|"Submits Unsubscribe Link"| Request
-    Request --> API
-    API --> Parser
-    Parser -->|"Target URL & Method"| Navigator
-    Navigator -.-> Telemetry
+    User --> ClientApp
+    ClientApp -->|"POST /api/strip/file (.eml)"| API
+    APIClient -->|"POST /api/strip/text (RFC 822)"| API
+    API --> Validator
+    Validator --> Parser
+    Parser -->|"Store raw streams in volatile RAM"| MemStore
+    Parser -->|"Sanitized text & headers"| Summarizer
+    Summarizer -.->|"Probe :8000 (1.2s timeout, silent fallback)"| MLSidecar
+    API --> PrivacyAudit
 
-    Navigator -->|"Spawn Ephemeral Context"| Context
-    Context --> PageNav
-    PageNav --> FormFiller
-    FormFiller --> ScreenshotTaker
-
-    ScreenshotTaker --> Proof
-    ScreenshotTaker --> AmnesiaPurge
-    Proof -->|"Audit Receipt"| User
+    Parser --> CleanResult
+    MemStore --> Attachments
+    PrivacyAudit --> AuditEndpoint
 
     classDef client fill:#0f172a,stroke:#64748b,stroke-width:1px,color:#f8fafc;
     classDef core fill:#1e293b,stroke:#38bdf8,stroke-width:2px,color:#f8fafc;
-    classDef sandbox fill:#14532d,stroke:#22c55e,stroke-width:2px,color:#f8fafc;
-    classDef purge fill:#78350f,stroke:#f59e0b,stroke-width:2px,color:#f8fafc;
+    classDef sidecar fill:#14532d,stroke:#22c55e,stroke-width:2px,color:#f8fafc;
+    classDef output fill:#78350f,stroke:#f59e0b,stroke-width:2px,color:#f8fafc;
 
-    class User,Request client;
-    class API,Parser,Navigator,Telemetry core;
-    class Context,PageNav,FormFiller,ScreenshotTaker sandbox;
-    class Proof,AmnesiaPurge purge;
+    class User,ClientApp,APIClient client;
+    class API,Parser,Validator,MemStore,Summarizer,PrivacyAudit core;
+    class MLSidecar sidecar;
+    class CleanResult,Attachments,AuditEndpoint output;
 ```
 
-### B. Automated Unsubscribe & Verification Lifecycle
+### B. Email Sanitization & Privacy Lifecycle
 
 ```mermaid
 sequenceDiagram
     autonumber
-    actor Consumer as Consumer / Client
-    participant API as .NET 10 API
-    participant Nav as Playwright Service
-    participant Browser as Ephemeral Chromium
-    participant Target as Marketing Unsubscribe Portal
+    actor Consumer as User / Web Client
+    participant API as Minimal API (StripEndpoints.cs)
+    participant Parser as MimeKitEmailParser.cs
+    participant MemStore as MemoryAttachmentStore.cs
+    participant Summarizer as MlHybridSummarizer.cs
+    participant Sidecar as Local ML (:8000)
 
-    Consumer->>API: POST /api/v1/unsubscribe (rawEmailOrUrl)
-    API->>Nav: ProcessUnsubscribeAsync(targetUrl)
-    Nav->>Browser: Launch isolated IBrowserContext (incognito)
-    Nav->>Browser: NewPageAsync()
-    Browser->>Target: Navigate to unsubscribe portal
-    Target-->>Browser: Return HTML form (radio buttons, confirmation inputs)
-    Nav->>Browser: Detect & click "Unsubscribe from all", fill email if required
-    Browser->>Target: Submit unsubscribe form
-    Target-->>Browser: Confirmation message ("You have been unsubscribed")
-    Nav->>Browser: Capture FullPageScreenshotAsync()
-    Nav->>Browser: Context.CloseAsync() & DisposeAsync()
-    Note over Browser: All cookies, local storage & cache physically destroyed
-    Nav-->>API: Return status (SUCCESS) & evidence thumbnail
-    API-->>Consumer: 200 OK with confirmation receipt & screenshot proof
+    Consumer->>API: POST /api/strip/file (.eml multipart)
+    API->>API: Validate file size <= 50 MB budget
+    API->>Parser: ParseStreamAsync(stream, fileName)
+    Parser->>Parser: Parse MIME structure with MimeKit
+    Parser->>Parser: Strip tracking pixels (<img width="1" height="1"> / tracking hosts)
+    Parser->>Parser: Sanitize query parameters (strip utm_*, fbclid, etc.)
+    Parser->>MemStore: StoreAttachmentAsync(id, memoryStream) [RAM only]
+    API->>Summarizer: SummarizeAsync(cleanText, subject)
+    alt Local ML Sidecar Available
+        Summarizer->>Sidecar: POST /api/v1/inference/generate (1.2s timeout)
+        Sidecar-->>Summarizer: Return neural one-sentence title
+    else Sidecar Absent / Timeout
+        Summarizer->>Summarizer: Deterministic extractive headline fallback
+    end
+    Summarizer-->>API: Return StrippedEmail summary & bullet deliverables
+    API-->>Consumer: 200 OK with clean payload & volatile attachment URLs
+    Note over MemStore: Evicts automatically after sliding expiration; zero disk writes
 ```
 
 ---
@@ -106,11 +110,11 @@ sequenceDiagram
 
 | # | Invariant | Enforcement & Guarantee |
 |:--|:----------|:------------------------|
-| 1 | **Ephemeral Sandboxing** | Every unsubscribe operation executes inside an isolated, newly instantiated browser context destroyed immediately upon completion. |
-| 2 | **Zero Credential Persistence** | User email addresses and session cookies are kept exclusively in transient heap variables; never stored in a database or logs. |
-| 3 | **Central Package Management (CPM)** | 100% of .NET packages pinned centrally in `Directory.Packages.props` with fail-closed security gating (`NU1903`/`NU1904`). |
-| 4 | **Visual Evidence Verification** | An unforgeable visual snapshot of the confirmation page is generated before context disposal, providing legal proof of cancellation under CAN-SPAM. |
-| 5 | **Volatile Operational Telemetry** | Telemetry is strictly allowlisted via `KnowThankYew.Privacy.Telemetry`; domain names, recipient emails, and URLs are sanitized. |
+| 1 | **100% Volatile RAM Storage** | Attachments and parsed email contents are held strictly in `MemoryAttachmentStore` (`MemoryStream`). Zero bytes written to disk, `/tmp`, or database. |
+| 2 | **Air-Gapped Network Boundary** | Strict browser Content Security Policy (`default-src 'self' http://localhost:8000; connect-src 'self' http://localhost:8000`). No outbound egress to third parties. |
+| 3 | **Tracking Pixel Scrubbing** | HTML bodies are sanitized to neutralize 1x1/0x0 tracking beacons, marketing web bugs, and URL tracking telemetry query strings. |
+| 4 | **Central Package Management (CPM)** | 100% of .NET NuGet packages pinned centrally in `Directory.Packages.props` with fail-closed security gating (`NU1903`/`NU1904`). |
+| 5 | **Cryptographic Privacy Audit** | `GET /api/strip/privacy-audit` exposes live runtime socket and disk verification, proving zero outbound sockets and zero temp files. |
 
 ---
 
@@ -120,16 +124,33 @@ sequenceDiagram
 mailStripper/
 ├── Directory.Build.props        # NuGetAudit & security warnings
 ├── Directory.Packages.props     # Central Package Management (CPM)
-├── Dockerfile                   # Multi-stage container with Playwright dependencies
+├── Dockerfile                   # Multi-stage container definition
 ├── mailStripper.slnx            # Solution definition
 ├── MailStripper/
-│   ├── Endpoints/               # .NET 10 Minimal API endpoints
-│   ├── Models/                  # Request/response DTOs & status types
-│   ├── Security/                # URL sanitization & host allowlisting
-│   ├── Services/                # Playwright headless engine & email parsing
-│   ├── Program.cs               # Application entrypoint & DI setup
-│   └── wwwroot/                 # Web interface assets
-├── MailStripper.Tests/          # xUnit test suite with mocked browser flows
+│   ├── Endpoints/
+│   │   └── StripEndpoints.cs    # .NET 10 Minimal API route definitions
+│   ├── Models/
+│   │   ├── AttachmentInfo.cs    # Attachment metadata & category models
+│   │   └── StrippedEmail.cs     # Sanitized response DTOs
+│   ├── Security/
+│   │   └── SecurityConstants.cs # Payload bounds & security constants
+│   ├── Services/
+│   │   ├── EmailValidator.cs    # Input sanity & budget validation
+│   │   ├── ExtractiveEmailSummarizer.cs # Deterministic headline & bullet extractor
+│   │   ├── IAttachmentStore.cs  # Storage contract
+│   │   ├── IEmailParser.cs      # MIME parser interface
+│   │   ├── IEmailSummarizer.cs  # Summarization interface
+│   │   ├── InvalidEmailException.cs # Typed validation exceptions
+│   │   ├── MemoryAttachmentStore.cs # Volatile RAM attachment store
+│   │   ├── MimeKitEmailParser.cs# MimeKit parser & pixel stripper
+│   │   ├── MlHybridSummarizer.cs# Hybrid extractor with local ML sidecar probe
+│   │   ├── PrivacyAuditService.cs # Sockets & disk audit service
+│   │   └── SampleEmailService.cs# Built-in demo email fixture
+│   ├── Program.cs               # Kestrel host, DI & CSP configuration
+│   └── wwwroot/                 # Web interface assets (app.js, app.css, index.html)
+├── MailStripper.Tests/          # xUnit test suite (MIME, summarizer, privacy audit)
+├── scripts/
+│   └── audit-claims.mjs         # Architectural & invariant claims linter
 └── docs/
     ├── ARCHITECTURE.md          # Architecture, data flow & invariant specification
     └── PRIVACY_TELEMETRY_SCHEMA.md # Telemetry contract specification
