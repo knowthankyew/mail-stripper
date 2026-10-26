@@ -28,20 +28,29 @@ import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execSync } from 'node:child_process';
+import {
+  stripLineComment,
+  stripBlockComments,
+  FORBIDDEN_NETWORK_REGEX,
+  testNetworkPrimitive,
+  scanDocumentationForVocabulary,
+  BANNED_VOCABULARY,
+} from './claims-linter-core.mjs';
+
+export {
+  stripLineComment,
+  stripBlockComments,
+  FORBIDDEN_NETWORK_REGEX,
+  testNetworkPrimitive,
+  scanDocumentationForVocabulary,
+  BANNED_VOCABULARY,
+};
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const REPO_ROOT = resolve(__dirname, '..');
 const DEV_ROOT = resolve(REPO_ROOT, '..');
-
-const PROHIBITED_WORDS = [
-  /\bbullet-?proof\b/i,
-  /\brock\s+solid\b/i,
-  /\bconclusive\b/i,
-  /\bdefinitive\b/i,
-  /\binfinitely scalable\b/i,
-];
 
 /**
  * Audit 1: Zero External Network Egress & CSP Integrity
@@ -100,16 +109,20 @@ export function auditZeroEgress(errors = []) {
 
   if (existsSync(appJsPath)) {
     const appJsContent = readFileSync(appJsPath, 'utf-8');
-    const lines = appJsContent.split('\n');
+    const noBlock = stripBlockComments(appJsContent);
+    const lines = noBlock.split('\n');
     lines.forEach((line, idx) => {
-      const trimmed = line.trim();
-      if (trimmed.startsWith('//') || trimmed.startsWith('*') || trimmed.startsWith('/*')) return;
+      const stripped = stripLineComment(line).trim();
+      if (!stripped || stripped.startsWith('*')) return;
 
-      // Reject forbidden outbound browser APIs
-      if (/\b(XMLHttpRequest|navigator\.sendBeacon|new\s+WebSocket|new\s+EventSource)\b/.test(line)) {
-        errors.push(`MailStripper/wwwroot/app.js:${idx + 1}: Forbidden outbound network primitive detected: ${trimmed}`);
+      // Reject forbidden outbound browser primitives using shared core
+      if (testNetworkPrimitive(stripped)) {
+        const nonFetchForbiddenRegex =
+          /(?:\b(?:XMLHttpRequest|axios)\b|\[\s*['"`](?:XMLHttpRequest|sendBeacon|WebSocket|EventSource|axios)['"`]\s*\]|\bnavigator\s*(?:\??\.\s*sendBeacon|\[\s*['"`]sendBeacon['"`]\s*\])|\bnew\s+(?:WebSocket|EventSource|Image)\b|\bnew\s+Worker\s*\(\s*(?:new\s+URL\s*\(\s*)?['"`]https?:\/\/|\bimport\s*\(\s*['"`]https?:\/\/|\bdocument\s*(?:\??\.\s*createElement|\[\s*['"`]createElement['"`]\s*\])\s*\(\s*['"`]script['"`]\s*\))/;
+        if (nonFetchForbiddenRegex.test(stripped)) {
+          errors.push(`MailStripper/wwwroot/app.js:${idx + 1}: Forbidden outbound network primitive detected: ${stripped}`);
+        }
       }
-
     });
 
     // Validate all fetch() invocations in app.js target local/relative endpoints only (including multiline)
@@ -287,25 +300,10 @@ export function auditVocabulary(errors = []) {
 
   for (const docPath of docsToCheck) {
     if (!existsSync(docPath)) continue;
-    const lines = readFileSync(docPath, 'utf-8').split('\n');
-    lines.forEach((line, idx) => {
-      const lower = line.toLowerCase();
-      if (
-        lower.includes('prohibits unprovable') ||
-        lower.includes('prohibited word') ||
-        lower.includes('prohibited marketing') ||
-        lower.includes('bulletproof') && lower.includes('prohibit')
-      ) {
-        return;
-      }
-      for (const pattern of PROHIBITED_WORDS) {
-        if (pattern.test(line)) {
-          errors.push(
-            `Prohibited marketing word '${pattern.source}' found in ${docPath.replace(REPO_ROOT + '/', '')}:${idx + 1}: ${line.trim()}`
-          );
-        }
-      }
-    });
+    const content = readFileSync(docPath, 'utf-8');
+    const relPath = docPath.replace(REPO_ROOT + '/', '');
+    const vocabErrors = scanDocumentationForVocabulary(content, relPath);
+    errors.push(...vocabErrors);
   }
 }
 

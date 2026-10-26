@@ -485,8 +485,15 @@ document.addEventListener('DOMContentLoaded', () => {
     previewModal.showModal();
 
     if (att.category === 'image') {
-      const img = new Image();
-      img.src = att.previewUrl;
+      const previewUrl = typeof att.previewUrl === 'string' && att.previewUrl.startsWith('/api/strip/')
+        ? att.previewUrl
+        : null;
+      if (!previewUrl) {
+        modalBody.innerHTML = '<p style="color:#f43f5e;">Invalid image preview endpoint.</p>';
+        return;
+      }
+      const img = document.createElement('img');
+      img.src = previewUrl;
       img.alt = `Preview of ${att.fileName}`;
       img.onload = () => {
         modalBody.innerHTML = '';
