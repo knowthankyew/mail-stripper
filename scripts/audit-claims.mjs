@@ -255,8 +255,16 @@ export function auditCentralPackageManagement(errors = []) {
     if (!content.includes('<ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>')) {
       errors.push('Directory.Packages.props must enable ManagePackageVersionsCentrally.');
     }
-    if (!content.includes('PackageVersion Include="System.Security.Cryptography.Pkcs" Version="10.0.13"')) {
-      errors.push('Directory.Packages.props must pin System.Security.Cryptography.Pkcs to version 10.0.13 to resolve GHSA-846f-f764-76mx.');
+    const pkcsMatch = content.match(/PackageVersion\s+Include="System\.Security\.Cryptography\.Pkcs"\s+Version="([^"]+)"/);
+    if (!pkcsMatch) {
+      errors.push('Directory.Packages.props must pin System.Security.Cryptography.Pkcs to version >= 10.0.13 to resolve GHSA-846f-f764-76mx.');
+    } else {
+      const ver = pkcsMatch[1];
+      const parts = ver.split('.').map(Number);
+      const isSecure = parts[0] > 10 || (parts[0] === 10 && (parts[1] > 0 || (parts[1] === 0 && parts[2] >= 13)));
+      if (!isSecure) {
+        errors.push(`Directory.Packages.props must pin System.Security.Cryptography.Pkcs to version >= 10.0.13 to resolve GHSA-846f-f764-76mx (found ${ver}).`);
+      }
     }
   }
 
@@ -416,7 +424,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   console.log('  ✓ 100% volatile in-memory storage verified (MemoryAttachmentStore, zero disk file writes)');
   console.log('  ✓ 50 MB maximum upload size budgeting verified in Kestrel configuration');
   console.log('  ✓ PrivacyAuditService socket verification and cryptographic audit endpoint verified');
-  console.log('  ✓ Central Package Management (CPM) & patched System.Security.Cryptography.Pkcs 10.0.13 verified');
+  console.log('  ✓ Central Package Management (CPM) & patched System.Security.Cryptography.Pkcs (>= 10.0.13) verified');
   console.log('  ✓ Zero prohibited marketing adjectives detected in documentation');
   if (briefChecked) {
     console.log(`  ✓ Portfolio Master Brief dynamic test parity verified (${briefChecked.passedCount}/${briefChecked.totalCount} unit tests)`);
