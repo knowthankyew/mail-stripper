@@ -2,6 +2,9 @@ using MailStripper.Endpoints;
 using MailStripper.Security;
 using MailStripper.Services;
 
+// Register legacy code pages provider for ISO-8859 / Windows-1252 MIME compatibility
+System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Limit request body size to prevent memory exhaustion
@@ -13,6 +16,7 @@ builder.WebHost.ConfigureKestrel(options =>
 // Add Services
 builder.Services.AddHttpClient();
 builder.Services.Configure<SummarizerOptions>(builder.Configuration.GetSection("Summarizer"));
+builder.Services.Configure<UnsubscribeForensicsOptions>(builder.Configuration.GetSection("Forensics"));
 
 builder.Services.AddSingleton<IAttachmentStore, MemoryAttachmentStore>();
 builder.Services.AddSingleton<ExtractiveEmailSummarizer>();

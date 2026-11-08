@@ -18,7 +18,12 @@ public enum AuthenticationProvenance
     UnverifiedUpload,
     MissingAuthHeaders,
     SyntheticPastedBody,
-    AmbiguousOrForgedHeader
+    AmbiguousOrForgedHeader,
+    /// <summary>
+    /// Message headers name the expected receiving MX (authserv-id match plus a corroborating Received hop).
+    /// This is a structural, self-attested match on an uploaded file. It is NOT cryptographic authentication.
+    /// </summary>
+    TrustedReceivingMx
 }
 
 public class UnsubscribeCandidate
@@ -50,6 +55,14 @@ public class UnsubscribeForensicReport
     public bool AuthResultsClaimsDmarcPass { get; set; }
     public bool AlignedWithSenderOrKnownEsp { get; set; }
     public string? AlignmentReason { get; set; }
+
+    public string? MatchedAuthservId { get; set; }
+    public string? ExpectedAuthservId { get; set; }
+    /// <summary>
+    /// True only when headers structurally match the expected authserv-id.
+    /// Self-attested by the uploaded message; not proof of authenticity.
+    /// </summary>
+    public bool AuthservIdVerified { get; set; }
 
     public string? PrimaryTargetHost { get; set; }
     public string? SterileCurlCommand { get; set; }

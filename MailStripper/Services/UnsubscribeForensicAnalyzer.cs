@@ -3,6 +3,7 @@ using System.Net;
 using System.Text;
 using System.Text.RegularExpressions;
 using MailStripper.Models;
+using Microsoft.Extensions.Options;
 using MimeKit;
 
 namespace MailStripper.Services;
@@ -84,14 +85,50 @@ public partial class UnsubscribeForensicAnalyzer : IUnsubscribeForensicAnalyzer
         "subscription preferences",
         "manage subscriptions",
         "remove me",
-        "stop receiving"
+        "stop receiving",
+        "desabonnement",
+        "désabonnement",
+        "desabonner",
+        "désabonner",
+        "se désinscrire",
+        "se desinscrire",
+        "newsletter abmelden",
+        "newsletter abbestellen",
+        "vom newsletter abmelden",
+        "abbestellen",
+        "cancelar suscripción",
+        "cancelar suscripcion",
+        "darse de baja",
+        "desuscribirse"
     ];
 
-    public UnsubscribeForensicReport Analyze(MimeMessage message)
+    private readonly string? _defaultTrustedAuthservId;
+
+    public UnsubscribeForensicAnalyzer()
+    {
+    }
+
+    public UnsubscribeForensicAnalyzer(IOptions<UnsubscribeForensicsOptions>? options)
+    {
+        _defaultTrustedAuthservId = options?.Value?.TrustedAuthservId;
+    }
+
+    public UnsubscribeForensicAnalyzer(string? defaultTrustedAuthservId)
+    {
+        _defaultTrustedAuthservId = defaultTrustedAuthservId;
+    }
+
+    public UnsubscribeForensicReport Analyze(MimeMessage message, string? trustedAuthservId = null)
     {
         ArgumentNullException.ThrowIfNull(message);
+        // Operator-configured default takes precedence whenever configured; request override applies only if no default is configured
+        var effectiveAuthservId = !string.IsNullOrWhiteSpace(_defaultTrustedAuthservId)
+            ? _defaultTrustedAuthservId
+            : trustedAuthservId;
         var targetMessage = ResolveTargetMessage(message, 0);
-        return AnalyzeSingleMessage(targetMessage);
+        // The trusted MX only vouches for the outermost message, never for forwarded inner attachments.
+        var scopedAuthservId = ReferenceEquals(targetMessage, message) ? effectiveAuthservId : null;
+        return AnalyzeSingleMessage(targetMessage, scopedAuthservId);
     }
 
     private static MimeMessage ResolveTargetMessage(MimeMessage current, int depth)
@@ -127,7 +164,7 @@ public partial class UnsubscribeForensicAnalyzer : IUnsubscribeForensicAnalyzer
         return current;
     }
 
-    private static UnsubscribeForensicReport AnalyzeSingleMessage(MimeMessage message)
+    private static UnsubscribeForensicReport AnalyzeSingleMessage(MimeMessage message, string? trustedAuthservId)
     {
         var report = new UnsubscribeForensicReport();
 
@@ -199,7 +236,8 @@ public partial class UnsubscribeForensicAnalyzer : IUnsubscribeForensicAnalyzer
                 hasListUnsubPostHeader: listUnsubPostHeaders.Count == 1 && report.HasRfc8058OneClickPost,
                 senderDomains,
                 report,
-                verifiedDkimDomains);
+                verifiedDkimDomains,
+                trustedAuthservId);
         }
 
         // 5. Extract & evaluate Header List-Unsubscribe candidates
@@ -315,7 +353,8 @@ public partial class UnsubscribeForensicAnalyzer : IUnsubscribeForensicAnalyzer
         bool hasListUnsubPostHeader,
         HashSet<string> senderDomains,
         UnsubscribeForensicReport report,
-        HashSet<string> verifiedDkimDomains)
+        HashSet<string> verifiedDkimDomains,
+        string? trustedAuthservId)
     {
         int receivedCount = message.Headers.Count(h => h.Id == HeaderId.Received);
         var topAuthHeader = message.Headers.FirstOrDefault(h => h.Id == HeaderId.AuthenticationResults);
@@ -334,13 +373,61 @@ public partial class UnsubscribeForensicAnalyzer : IUnsubscribeForensicAnalyzer
                 return;
             }
 
-            if (report.Provenance != AuthenticationProvenance.AmbiguousOrForgedHeader)
-            {
-                report.Provenance = AuthenticationProvenance.UnverifiedUpload;
-            }
-
             var authClean = StripRfc5322Comments(topAuthHeader.Value);
             var clauses = authClean.Split(';', StringSplitOptions.RemoveEmptyEntries);
+
+            // Clause 0 in RFC 8601 is the authserv-id [version] [authres-spec]
+            var rawClauseZero = clauses.Length > 0 ? clauses[0].Trim() : string.Empty;
+            var actualAuthservId = ExtractAuthservId(rawClauseZero);
+            report.MatchedAuthservId = actualAuthservId;
+
+            if (!string.IsNullOrWhiteSpace(trustedAuthservId))
+            {
+                var expectedNormalized = NormalizeAuthservId(trustedAuthservId);
+                report.ExpectedAuthservId = expectedNormalized;
+
+                if (string.Equals(actualAuthservId, expectedNormalized, StringComparison.OrdinalIgnoreCase))
+                {
+                    // Corroborate with top Received hops (handling internal delivery hops like IPv6)
+                    var receivedHeaders = message.Headers.Where(h => h.Id == HeaderId.Received).Take(5).ToList();
+                    if (!TryCorroborateReceivedHops(receivedHeaders, expectedNormalized, out var hopFailureReason))
+                    {
+                        report.AuthservIdVerified = false;
+                        if (report.Provenance != AuthenticationProvenance.AmbiguousOrForgedHeader)
+                        {
+                            report.Provenance = AuthenticationProvenance.UnverifiedUpload;
+                        }
+                        AddUniqueSignal(report.PoisonSignals,
+                            $"Receiving MTA hop {hopFailureReason} expected trusted authserv-id '{expectedNormalized}'.");
+                        return;
+                    }
+
+                    report.AuthservIdVerified = true;
+                    if (report.Provenance != AuthenticationProvenance.AmbiguousOrForgedHeader)
+                    {
+                        report.Provenance = AuthenticationProvenance.TrustedReceivingMx;
+                    }
+                }
+                else
+                {
+                    // RFC 8601 § 4: An MUA MUST NOT rely on Authentication-Results header fields whose authserv-id it does not recognize or trust.
+                    report.AuthservIdVerified = false;
+                    if (report.Provenance != AuthenticationProvenance.AmbiguousOrForgedHeader)
+                    {
+                        report.Provenance = AuthenticationProvenance.UnverifiedUpload;
+                    }
+                    AddUniqueSignal(report.PoisonSignals,
+                        $"Authentication-Results authserv-id '{actualAuthservId}' does not match expected trusted authserv-id '{expectedNormalized}' (untrusted receiving MX assertion).");
+                    return; // Refuse to trust DKIM/SPF assertions from untrusted authserv-id
+                }
+            }
+            else
+            {
+                if (report.Provenance != AuthenticationProvenance.AmbiguousOrForgedHeader)
+                {
+                    report.Provenance = AuthenticationProvenance.UnverifiedUpload;
+                }
+            }
 
             // Clause 0 in RFC 8601 is the authserv-id; subsequent clauses are method=result
             for (int i = 1; i < clauses.Length; i++)
@@ -682,6 +769,8 @@ public partial class UnsubscribeForensicAnalyzer : IUnsubscribeForensicAnalyzer
 
     private static void FinalizeVerdict(UnsubscribeForensicReport report)
     {
+        report.AuthservIdVerified &= report.Provenance == AuthenticationProvenance.TrustedReceivingMx;
+
         if (report.PoisonSignals.Count > 0)
         {
             report.Classification = UnsubscribeClassification.PoisonOrReconTrap;
@@ -724,9 +813,18 @@ public partial class UnsubscribeForensicAnalyzer : IUnsubscribeForensicAnalyzer
                 report.PrimaryTargetHost = httpsHeaderCandidate.Host;
                 report.SterileCurlCommand = curlCmd;
                 report.ReconWarning = MandatoryReconWarning;
-                report.SummaryVerdict = report.Provenance == AuthenticationProvenance.UnverifiedUpload
-                    ? $"RFC 8058 One-Click POST candidate ({httpsHeaderCandidate.Host}) — static header checks pass (uploaded .eml provenance unverified)."
-                    : $"RFC 8058 One-Click POST candidate ({httpsHeaderCandidate.Host}) — DKIM header binding present (MX Authentication-Results absent).";
+                if (report.Provenance == AuthenticationProvenance.TrustedReceivingMx)
+                {
+                    report.SummaryVerdict = $"RFC 8058 One-Click POST candidate ({httpsHeaderCandidate.Host}) — headers name expected receiving MX '{report.MatchedAuthservId}' (self-attested; unauthenticated upload).";
+                }
+                else if (report.Provenance == AuthenticationProvenance.UnverifiedUpload)
+                {
+                    report.SummaryVerdict = $"RFC 8058 One-Click POST candidate ({httpsHeaderCandidate.Host}) — static header checks pass (uploaded .eml provenance unverified).";
+                }
+                else
+                {
+                    report.SummaryVerdict = $"RFC 8058 One-Click POST candidate ({httpsHeaderCandidate.Host}) — DKIM header binding present (MX Authentication-Results absent).";
+                }
                 return;
             }
         }
@@ -912,6 +1010,99 @@ public partial class UnsubscribeForensicAnalyzer : IUnsubscribeForensicAnalyzer
     private static string NormalizeDomain(string domain)
     {
         return domain.Trim().Trim('.').ToLowerInvariant();
+    }
+
+    private static string ExtractAuthservId(string clauseZero)
+    {
+        if (string.IsNullOrWhiteSpace(clauseZero)) return string.Empty;
+        var trimmed = clauseZero.Trim();
+
+        // In RFC 8601: authserv-id [version] [authres-spec]
+        var tokens = trimmed.Split(new[] { ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+        if (tokens.Length == 0) return string.Empty;
+
+        return NormalizeAuthservId(tokens[0]);
+    }
+
+    private static string NormalizeAuthservId(string authservId)
+    {
+        if (string.IsNullOrWhiteSpace(authservId)) return string.Empty;
+        var clean = authservId.Trim().Trim('"', '\'').TrimEnd('.').ToLowerInvariant();
+        return clean.Length <= 255 ? clean : clean[..255];
+    }
+
+    private static string? ExtractReceivedByHost(string receivedHeader)
+    {
+        if (string.IsNullOrWhiteSpace(receivedHeader)) return null;
+        var clean = StripRfc5322Comments(receivedHeader);
+        var match = ReceivedByRegex().Match(clean);
+        if (match.Success)
+        {
+            var raw = match.Groups[1].Value.Trim().TrimEnd('.');
+            var normalized = raw.ToLowerInvariant();
+            return normalized.Length <= 255 ? normalized : normalized[..255];
+        }
+        return null;
+    }
+
+    private static bool TryCorroborateReceivedHops(
+        IEnumerable<Header> receivedHeaders,
+        string expectedNormalized,
+        out string? failureReason)
+    {
+        failureReason = null;
+        bool hasAnyReceived = false;
+        string? firstContradiction = null;
+
+        foreach (var header in receivedHeaders)
+        {
+            hasAnyReceived = true;
+            var byHost = ExtractReceivedByHost(header.Value);
+            if (string.IsNullOrEmpty(byHost))
+            {
+                break;
+            }
+
+            // Skip internal IP literals (e.g., IPv6 "2002:..." or IPv4 literals) that represent internal MTA delivery
+            if (byHost.Contains(':') || IPAddress.TryParse(byHost.Trim('[', ']'), out _))
+            {
+                continue;
+            }
+
+            // Only the topmost non-internal hop can vouch for the Authentication-Results header added above it
+            if (ReceivedHopCorroborates(byHost, expectedNormalized))
+            {
+                return true;
+            }
+
+            firstContradiction = byHost;
+            break;
+        }
+
+        if (!hasAnyReceived)
+        {
+            failureReason = "without any Received MTA transit hops";
+            return false;
+        }
+
+        if (firstContradiction != null)
+        {
+            failureReason = $"('by {firstContradiction}') contradicts";
+            return false;
+        }
+
+        failureReason = "lacks a corroborating 'by' hostname for";
+        return false;
+    }
+
+    private static bool ReceivedHopCorroborates(string? byHost, string expectedAuthservId)
+    {
+        if (string.IsNullOrEmpty(byHost)) return false; // fail closed: no receiving host to corroborate
+        var normBy = NormalizeDomain(byHost);
+        var normExpected = NormalizeDomain(expectedAuthservId);
+        if (string.Equals(normBy, normExpected, StringComparison.OrdinalIgnoreCase)) return true;
+        if (normBy.EndsWith("." + normExpected, StringComparison.OrdinalIgnoreCase)) return true;
+        return false;
     }
 
     private static List<ParsedDkimSignature> ParseDkimSignatures(MimeMessage message)
@@ -1339,4 +1530,7 @@ public partial class UnsubscribeForensicAnalyzer : IUnsubscribeForensicAnalyzer
 
     [GeneratedRegex(@"^\s*([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+)(?:/[^\s]*)?\s*$", RegexOptions.IgnoreCase | RegexOptions.NonBacktracking, 250)]
     private static partial Regex BareDomainTextRegex();
+
+    [GeneratedRegex(@"\bby\s+(\[[0-9a-f:.]+\]|[a-z0-9_.:-]+)", RegexOptions.IgnoreCase | RegexOptions.NonBacktracking, 250)]
+    private static partial Regex ReceivedByRegex();
 }

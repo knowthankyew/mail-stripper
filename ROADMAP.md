@@ -47,7 +47,7 @@ To uphold `knowthankyew/mail-stripper`'s non-negotiable zero-egress and loopback
 | Milestone | Target Version | Governance Scope | Core Objective | Status |
 | :--- | :---: | :--- | :--- | :---: |
 | **Milestone 1** | `v1.1.0` | **In-Repo (`mailStripper`)** | Air-Gapped Unsubscribe Forensic Analyzer (`UnsubscribeForensicAnalyzer.cs`), HTML Preview Link Defanging & Web UI Shield Card | ✅ **Delivered** |
-| **Milestone 1.5** | `v1.1.5` | **In-Repo (`mailStripper`)** | Trusted `authserv-id` Optional Configuration & Byte-Preserving Multipart Forensics Verification | 📋 **Scoped (Next)** |
+| **Milestone 1.5** | `v1.1.5` | **In-Repo (`mailStripper`)** | Trusted `authserv-id` Optional Configuration & Byte-Preserving Multipart Forensics Verification | ✅ **Delivered** |
 | **Companion A** | `External Repo` | **Separate Repo (`unsubscribe-shield-ext`)** | Standalone Thunderbird MailExtension + Chromium/Firefox WebExtension (Governed Outside `mail-stripper`) | 🔭 **External Companion** |
 | **Companion B** | `External Repo` | **Separate Repo (`mail-stripper-imap`)** | Protocol-Level IMAP `@Safe-Unsubscribe` Quarantine Watcher (Governed Outside `mail-stripper`) | 🔭 **External Companion** |
 
@@ -79,10 +79,10 @@ To uphold `knowthankyew/mail-stripper`'s non-negotiable zero-egress and loopback
     4. Adversarial header attacks: prepended duplicate `List-Unsubscribe` header, second forged `DKIM-Signature` with matching `d=` but different `s=`, forged `Authentication-Results`, `javascript:`/`http:` downgrades, and shell single-quote injection attempts.
     5. E2E verification that `<a>` tags inside the Sanitized HTML preview are defanged and cannot navigate away.
 
-### Milestone 1.5 (`v1.1.5`): Provenance Hardening & Byte-Exact Ingestion Parity
+### Milestone 1.5 (`v1.1.5`): Provenance Hardening & Byte-Exact Ingestion Parity ✅
 
-- [ ] **Trusted `authserv-id` Verification Option**: Allow callers of `/api/strip/file` (or local `appsettings.json` configuration) to optionally declare an expected receiving MX `authserv-id` (per RFC 8601), keeping default static `.eml` uploads strictly labeled `UnverifiedUpload`.
-- [ ] **8-Bit Non-UTF-8 MIME Preservation Tests**: Add xUnit tests verifying that `POST /api/strip/file` (`Stream` byte ingestion) preserves raw `ISO-8859-1` / `Windows-1252` 8-bit MIME bodies and raw DKIM header bytes without UTF-8 replacement corruption (`U+FFFD`).
+- [x] **Trusted `authserv-id` Verification Option**: Allow callers of `/api/strip/file` and `/api/strip/text` (or local `appsettings.json` configuration via `UnsubscribeForensicsOptions`) to optionally declare an expected receiving MX `authserv-id` (per RFC 8601), elevating matching headers to `TrustedReceivingMx` (structural match; unauthenticated upload) while keeping default static `.eml` uploads strictly labeled `UnverifiedUpload` and failing closed when headers contradict the configured receiving MX.
+- [x] **8-Bit Non-UTF-8 MIME Preservation Tests**: Added xUnit tests in `MimeKitParserTests.cs` verifying that `POST /api/strip/file` (`Stream` byte ingestion) preserves raw `ISO-8859-1` / `Windows-1252` 8-bit MIME bodies, extended characters (`€`, `“`, `”`, `—`), multi-byte binary attachments, and multilingual unsubscribe anchors (`Désabonnement sécurisé`) without UTF-8 replacement corruption (`U+FFFD`).
 
 ---
 

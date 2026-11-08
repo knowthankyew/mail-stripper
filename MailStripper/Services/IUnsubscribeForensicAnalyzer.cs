@@ -5,5 +5,5 @@ namespace MailStripper.Services;
 
 public interface IUnsubscribeForensicAnalyzer
 {
-    UnsubscribeForensicReport Analyze(MimeMessage message);
+    UnsubscribeForensicReport Analyze(MimeMessage message, string? trustedAuthservId = null);
 }

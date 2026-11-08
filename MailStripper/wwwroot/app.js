@@ -503,6 +503,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const verdict = report.classification || 'NoUnsubscribeFound';
     resUnsubSection.setAttribute('data-verdict', verdict);
+    resUnsubSection.setAttribute('data-provenance', report.provenance || '');
     unsubSummaryText.textContent = report.summaryVerdict || '';
     unsubRiskBadge.textContent = `Risk: ${Number(report.riskScore || 0)}/100`;
 
@@ -516,6 +517,7 @@ document.addEventListener('DOMContentLoaded', () => {
     unsubVerdictBadge.textContent = verdictLabels[verdict] || verdict;
 
     const provLabels = {
+      TrustedReceivingMx: 'Provenance: Headers Name Expected MX (Unauthenticated)',
       UnverifiedUpload: 'Provenance: Unverified .eml Upload',
       MissingAuthHeaders: 'Provenance: No MX Auth Headers',
       SyntheticPastedBody: 'Provenance: Pasted Snippet',
@@ -547,6 +549,10 @@ document.addEventListener('DOMContentLoaded', () => {
         report.dkimCoversUnsubscribeHeaders ? '✓ DKIM h= Covers Unsubscribe' : '— DKIM h= Unbound / Absent',
         report.dkimCoversUnsubscribeHeaders ? 'pass' : (verdict === 'NoUnsubscribeFound' ? '' : 'warn')
       );
+    }
+
+    if (report.provenance === 'TrustedReceivingMx' && report.authservIdVerified && report.matchedAuthservId) {
+      addChip(`Headers Name Expected MX (self-attested): ${report.matchedAuthservId}`, 'warn');
     }
 
     if (report.candidates && report.candidates.length > 0) {

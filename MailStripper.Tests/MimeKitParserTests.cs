@@ -9,6 +9,11 @@ namespace MailStripper.Tests;
 
 public class MimeKitParserTests
 {
+    static MimeKitParserTests()
+    {
+        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+    }
+
     [Fact]
     public async Task ParseStreamAsync_ExtractsMetadataAndAttachments_Correctly()
     {
@@ -126,5 +131,148 @@ public class MimeKitParserTests
 
         Assert.True(store.HasAttachments(sessionId));
         store.Dispose(); // Should terminate background loop cleanly without throw
+    }
+
+    [Fact]
+    public async Task ParseStreamAsync_Iso885918BitBody_PreservesAccentedCharactersWithoutReplacementChar()
+    {
+        using var store = new MemoryAttachmentStore();
+        var summarizer = new ExtractiveEmailSummarizer();
+        var parser = new MimeKitEmailParser(summarizer, store, NullLogger<MimeKitEmailParser>.Instance);
+
+        var latin1 = Encoding.GetEncoding("iso-8859-1");
+        var rawMessage =
+            "From: Chef <chef@gastronomie.fr>\r\n" +
+            "To: gourmet@gastronomie.fr\r\n" +
+            "Subject: =?ISO-8859-1?Q?Menu_d=E9gustation_d'=E9t=E9?=\r\n" +
+            "MIME-Version: 1.0\r\n" +
+            "Content-Type: text/plain; charset=iso-8859-1\r\n" +
+            "Content-Transfer-Encoding: 8bit\r\n\r\n" +
+            "Voici notre crème brûlée, café liégeois, et pâté de campagne pour Herr Müller.";
+
+        var rawBytes = latin1.GetBytes(rawMessage);
+        using var ms = new MemoryStream(rawBytes);
+
+        var result = await parser.ParseStreamAsync(ms, "menu_iso88591.eml");
+
+        Assert.NotNull(result);
+        Assert.Equal("Menu dégustation d'été", result.Subject);
+        Assert.Contains("crème brûlée", result.BodyText);
+        Assert.Contains("café liégeois", result.BodyText);
+        Assert.Contains("pâté de campagne", result.BodyText);
+        Assert.Contains("Herr Müller", result.BodyText);
+        Assert.DoesNotContain("\uFFFD", result.BodyText);
+        Assert.DoesNotContain("\uFFFD", result.Subject);
+    }
+
+    [Fact]
+    public async Task ParseStreamAsync_Windows12528BitBody_PreservesExtendedPunctuationAndCurrency()
+    {
+        using var store = new MemoryAttachmentStore();
+        var summarizer = new ExtractiveEmailSummarizer();
+        var parser = new MimeKitEmailParser(summarizer, store, NullLogger<MimeKitEmailParser>.Instance);
+
+        var win1252 = Encoding.GetEncoding(1252);
+        var rawMessage =
+            "From: Finance <billing@enterprise.corp>\r\n" +
+            "To: vendor@enterprise.corp\r\n" +
+            "Subject: Invoice Sign-Off\r\n" +
+            "MIME-Version: 1.0\r\n" +
+            "Content-Type: text/plain; charset=windows-1252\r\n" +
+            "Content-Transfer-Encoding: 8bit\r\n\r\n" +
+            "Total Approved: 1,500 € — “Expedited Project”™ milestone (discount: 50 € – 100 €).";
+
+        var rawBytes = win1252.GetBytes(rawMessage);
+        using var ms = new MemoryStream(rawBytes);
+
+        var result = await parser.ParseStreamAsync(ms, "invoice_win1252.eml");
+
+        Assert.NotNull(result);
+        Assert.Contains("1,500 €", result.BodyText);
+        Assert.Contains("“Expedited Project”™", result.BodyText);
+        Assert.Contains("50 € – 100 €", result.BodyText);
+        Assert.DoesNotContain("\uFFFD", result.BodyText);
+    }
+
+    [Fact]
+    public async Task ParseStreamAsync_Iso88591Newsletter_ForensicAnalyzerDecodesAccentedAnchorAndRfc8058WithoutCorruption()
+    {
+        using var store = new MemoryAttachmentStore();
+        var summarizer = new ExtractiveEmailSummarizer();
+        var parser = new MimeKitEmailParser(summarizer, store, NullLogger<MimeKitEmailParser>.Instance);
+
+        var latin1 = Encoding.GetEncoding("iso-8859-1");
+        var rawMessage =
+            "Received: from mta.bulletin-pro.fr by mx.local;\r\n" +
+            "Authentication-Results: mx.local; dkim=pass header.d=bulletin-pro.fr header.s=s1\r\n" +
+            "DKIM-Signature: v=1; a=rsa-sha256; d=bulletin-pro.fr; s=s1; h=from:list-unsubscribe:list-unsubscribe-post; b=YWJj\r\n" +
+            "From: Bulletin Pro <redaction@bulletin-pro.fr>\r\n" +
+            "To: abonne@bulletin-pro.fr\r\n" +
+            "Subject: =?ISO-8859-1?Q?Actualit=E9s_de_la_semaine?=\r\n" +
+            "List-Unsubscribe: <https://bulletin-pro.fr/desabonner-oneclick>\r\n" +
+            "List-Unsubscribe-Post: List-Unsubscribe=One-Click\r\n" +
+            "MIME-Version: 1.0\r\n" +
+            "Content-Type: text/html; charset=iso-8859-1\r\n" +
+            "Content-Transfer-Encoding: 8bit\r\n\r\n" +
+            "<html><body><p>Actualités hebdomadaires.</p><p><a href=\"https://bulletin-pro.fr/desabonner\">Désabonnement sécurisé</a></p></body></html>";
+
+        var rawBytes = latin1.GetBytes(rawMessage);
+        using var ms = new MemoryStream(rawBytes);
+
+        var result = await parser.ParseStreamAsync(ms, "bulletin_iso88591.eml");
+
+        Assert.NotNull(result);
+        Assert.Equal("Actualités de la semaine", result.Subject);
+        Assert.Equal(UnsubscribeClassification.OneClickPostCandidate, result.Unsubscribe.Classification);
+        Assert.DoesNotContain("\uFFFD", result.BodyText);
+
+        var htmlAnchorCandidate = result.Unsubscribe.Candidates.FirstOrDefault(c => c.Source == "BodyHtmlAnchor");
+        Assert.NotNull(htmlAnchorCandidate);
+        Assert.Equal("Désabonnement sécurisé", htmlAnchorCandidate.AnchorText);
+        Assert.DoesNotContain("\uFFFD", htmlAnchorCandidate.AnchorText);
+    }
+
+    [Fact]
+    public async Task ParseStreamAsync_RawBinaryAttachmentStream_PreservesExactBytes()
+    {
+        using var store = new MemoryAttachmentStore();
+        var summarizer = new ExtractiveEmailSummarizer();
+        var parser = new MimeKitEmailParser(summarizer, store, NullLogger<MimeKitEmailParser>.Instance);
+
+        // Generate binary payload covering all 256 byte values 0x00..0xFF
+        var binaryPayload = new byte[1024];
+        for (int i = 0; i < binaryPayload.Length; i++)
+        {
+            binaryPayload[i] = (byte)(i % 256);
+        }
+
+        var base64Attachment = Convert.ToBase64String(binaryPayload);
+        var rawMessage =
+            "From: Backup <backup@system.local>\r\n" +
+            "To: admin@system.local\r\n" +
+            "Subject: Daily Forensic Snapshot\r\n" +
+            "MIME-Version: 1.0\r\n" +
+            "Content-Type: multipart/mixed; boundary=\"====BOUNDARY====\"\r\n\r\n" +
+            "--====BOUNDARY====\r\n" +
+            "Content-Type: text/plain; charset=utf-8\r\n\r\n" +
+            "Attached forensic binary.\r\n" +
+            "--====BOUNDARY====\r\n" +
+            "Content-Type: application/octet-stream; name=\"snapshot.bin\"\r\n" +
+            "Content-Disposition: attachment; filename=\"snapshot.bin\"\r\n" +
+            "Content-Transfer-Encoding: base64\r\n\r\n" +
+            base64Attachment + "\r\n" +
+            "--====BOUNDARY====--";
+
+        using var ms = new MemoryStream(Encoding.UTF8.GetBytes(rawMessage));
+        var result = await parser.ParseStreamAsync(ms, "forensic_backup.eml");
+
+        Assert.NotNull(result);
+        Assert.Equal(1, result.AttachmentCount);
+
+        var storedAttachment = store.GetAttachment(result.Id, 0);
+        Assert.NotNull(storedAttachment);
+        Assert.Equal("snapshot.bin", storedAttachment.FileName);
+        Assert.Equal(binaryPayload.Length, storedAttachment.Data.Length);
+        Assert.Equal(binaryPayload, storedAttachment.Data);
     }
 }

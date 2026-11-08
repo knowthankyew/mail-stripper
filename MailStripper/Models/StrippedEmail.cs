@@ -38,4 +38,5 @@ public class StrippedEmail
 public class StripTextRequest
 {
     public string Content { get; set; } = string.Empty;
+    public string? ExpectedAuthservId { get; set; }
 }

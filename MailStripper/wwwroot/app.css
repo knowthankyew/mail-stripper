@@ -1335,6 +1335,12 @@ button.engine-badge:focus-visible {
   color: var(--text-secondary);
 }
 
+.unsub-shield-section[data-provenance="TrustedReceivingMx"] .unsub-prov-pill {
+  background: rgba(245, 158, 11, 0.14);
+  border-color: rgba(245, 158, 11, 0.4);
+  color: #fcd34d;
+}
+
 .unsub-shield-section[data-verdict="OneClickPostCandidate"] .unsub-verdict-pill {
   background: rgba(16, 185, 129, 0.16);
   border-color: rgba(16, 185, 129, 0.4);

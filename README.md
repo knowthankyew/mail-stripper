@@ -11,6 +11,7 @@ Drop an `.eml` email or paste text, and `mailStripper` instantly provides:
 4. 🛡️ **100% Local-Only & Air-Gapped**: Proves zero external network egress (strict CSP), zero disk storage (volatile RAM only), and zero telemetry.
 5. 🔍 **Unsubscribe Forensics & Link Shield (`v1.1.0`)**: Statically inspects `List-Unsubscribe` / `List-Unsubscribe-Post` (RFC 2369 / RFC 8058) headers, exact `DKIM-Signature` (`d=`, `s=`, `b=`, `h=`) bindings, and body anchors to separate conforming opt-out candidates from punycode/spoofed phishing traps, generate sterile zero-cookie `curl` commands, and defang hyperlinks inside the Sanitized HTML preview.
 6. 🤖 **Optional ML Integration**: Works 100% standalone out-of-the-box with high-speed extractive summarization, and seamlessly pairs with the public [`event-driven-ftaas`](https://github.com/knowthankyew/event-driven-ftaas) microservice (`SmolLM2-135M` on `http://localhost:8000`) for generative understanding when available. *(See [Optional: Enable Generative Summaries](#-optional-enable-generative-summaries) for setup.)*
+7. 🌐 **Multilingual & Legacy Charset Resilience (`v1.1.5`)**: Decodes legacy code pages (`ISO-8859-1` through `ISO-8859-16`, `Windows-1252`, `Shift-JIS`, `EUC-JP`, `GB2312`) and preserves 8-bit text without `U+FFFD` corruption; strips internationalized subject prefixes (`Aw:`, `Sv:`, `Re:`); and detects multilingual unsubscribe anchors in French, German, and Spanish.
 
 ---
 
@@ -68,8 +69,9 @@ Clone the repository and run one command:
 
 For developers or automated pipelines, `mailStripper` exposes simple REST endpoints:
 
-- `POST /api/strip/file`: Upload `.eml` via multipart form. Returns stripped JSON + attachment URLs.
-- `POST /api/strip/text`: Paste raw RFC 822 or plain text snippet.
+- `POST /api/strip/file`: Upload `.eml` via multipart form. Optional `authservId` form parameter, `?authservId=` query parameter, or `X-Expected-Authserv-Id` HTTP header specifies expected receiving MX for RFC 8601 provenance verification. Returns stripped JSON + attachment URLs.
+- `POST /api/strip/text`: Paste raw RFC 822 or plain text snippet. Accepts `expectedAuthservId` JSON property, `?authservId=` query parameter, or `X-Expected-Authserv-Id` header.
+- *Receiving MX Trust Boundary*: When configured by the server operator via `Forensics:TrustedAuthservId` in `appsettings.json`, that setting takes strict precedence over request-supplied values to prevent client spoofing. Matching `authservId` validates structural alignment against the expected receiving MX in the message delivery chain. Because static `.eml` uploads cannot guarantee cryptographic MTA authenticity without direct mail-store integration, all candidates enforce active-inbox reconnaissance warnings and sterile execution parameters.
 - `GET /api/strip/{id}/attachments/{index}`: Download specific extracted attachment.
 - `GET /api/strip/{id}/attachments/download-all`: Download all attachments in a single `.zip` bundle.
 - `GET /api/strip/sample`: Returns a pre-parsed demo email with 3 attachments for 1-click testing.
@@ -81,7 +83,7 @@ For developers or automated pipelines, `mailStripper` exposes simple REST endpoi
 
 ## 🧪 Testing
 
-- **.NET Unit Tests**: 50 automated xUnit tests covering RFC 822 parsing, RFC 8058/2369/6376/8601 unsubscribe forensics, subject cleaning, intent extraction, and air-gapped guarantees:
+- **.NET Unit Tests**: 73 automated xUnit tests covering RFC 822 parsing, RFC 8058/2369/6376/8601 unsubscribe forensics, trusted authserv-id verification, 8-bit non-UTF-8 MIME preservation, subject cleaning, intent extraction, and air-gapped guarantees:
   ```bash
   dotnet test
   ```

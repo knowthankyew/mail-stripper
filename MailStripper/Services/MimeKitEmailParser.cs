@@ -24,7 +24,12 @@ public partial class MimeKitEmailParser : IEmailParser
         _unsubscribeAnalyzer = unsubscribeAnalyzer ?? new UnsubscribeForensicAnalyzer();
     }
 
-    public async Task<StrippedEmail> ParseStreamAsync(Stream stream, string? originalFileName = null, CancellationToken ct = default)
+    public Task<StrippedEmail> ParseStreamAsync(Stream stream, string? originalFileName = null, CancellationToken ct = default)
+    {
+        return ParseStreamAsync(stream, originalFileName, null, ct);
+    }
+
+    public async Task<StrippedEmail> ParseStreamAsync(Stream stream, string? originalFileName, string? trustedAuthservId, CancellationToken ct = default)
     {
         // 1. Rigorous file format and binary content validation
         var validation = EmailValidator.Validate(stream, originalFileName);
@@ -51,7 +56,7 @@ public partial class MimeKitEmailParser : IEmailParser
         // 2. Validate that the parsed MIME message has minimum email semantic structure
         ValidateMimeSemantics(message, originalFileName);
 
-        return await ProcessMimeMessageAsync(message, originalFileName, ct);
+        return await ProcessMimeMessageAsync(message, originalFileName, trustedAuthservId, ct);
     }
 
     private static void ValidateMimeSemantics(MimeMessage message, string? originalFileName)
@@ -80,7 +85,12 @@ public partial class MimeKitEmailParser : IEmailParser
         }
     }
 
-    public async Task<StrippedEmail> ParseTextAsync(string rawContent, CancellationToken ct = default)
+    public Task<StrippedEmail> ParseTextAsync(string rawContent, CancellationToken ct = default)
+    {
+        return ParseTextAsync(rawContent, null, ct);
+    }
+
+    public async Task<StrippedEmail> ParseTextAsync(string rawContent, string? trustedAuthservId, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(rawContent))
         {
@@ -105,10 +115,10 @@ public partial class MimeKitEmailParser : IEmailParser
         }
 
         using var ms = new MemoryStream(bytes);
-        return await ParseStreamAsync(ms, "pasted_email.eml", ct);
+        return await ParseStreamAsync(ms, "pasted_email.eml", trustedAuthservId, ct);
     }
 
-    private async Task<StrippedEmail> ProcessMimeMessageAsync(MimeMessage message, string? originalFileName, CancellationToken ct)
+    private async Task<StrippedEmail> ProcessMimeMessageAsync(MimeMessage message, string? originalFileName, string? trustedAuthservId, CancellationToken ct)
     {
         var sessionId = Guid.NewGuid().ToString("n");
         var rawSubject = message.Subject ?? string.Empty;
@@ -186,7 +196,7 @@ public partial class MimeKitEmailParser : IEmailParser
 
         var totalBytes = attachmentInfos.Sum(a => a.SizeBytes);
         var wordCount = bodyText.Split(new[] { ' ', '\r', '\n', '\t' }, StringSplitOptions.RemoveEmptyEntries).Length;
-        var unsubscribeForensics = _unsubscribeAnalyzer.Analyze(message);
+        var unsubscribeForensics = _unsubscribeAnalyzer.Analyze(message, trustedAuthservId);
 
         return new StrippedEmail
         {

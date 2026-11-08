@@ -31,10 +31,16 @@ public static class StripEndpoints
                 return Results.BadRequest(new { error = $"File exceeds {SecurityConstants.MaxUploadSizeBytes / (1024 * 1024)} MB limit." });
             }
 
+            string? formAuthserv = form.TryGetValue("authservId", out var fVal) ? fVal.ToString() : null;
+            if (!TryResolveAuthservId(formAuthserv, request, out var authservId, out var authservErr))
+            {
+                return Results.BadRequest(new { error = authservErr });
+            }
+
             try
             {
                 using var stream = file.OpenReadStream();
-                var result = await parser.ParseStreamAsync(stream, file.FileName);
+                var result = await parser.ParseStreamAsync(stream, file.FileName, authservId);
                 return Results.Ok(result);
             }
             catch (InvalidEmailException ex)
@@ -48,7 +54,7 @@ public static class StripEndpoints
         }).DisableAntiforgery();
 
         // Ingest raw text or RFC822 snippet
-        group.MapPost("/text", async (StripTextRequest request, IEmailParser parser) =>
+        group.MapPost("/text", async (StripTextRequest request, HttpRequest httpRequest, IEmailParser parser) =>
         {
             if (string.IsNullOrWhiteSpace(request?.Content))
             {
@@ -60,9 +66,14 @@ public static class StripEndpoints
                 return Results.BadRequest(new { error = $"Content exceeds {SecurityConstants.MaxUploadSizeBytes / (1024 * 1024)} MB limit." });
             }
 
+            if (!TryResolveAuthservId(request.ExpectedAuthservId, httpRequest, out var authservId, out var authservErr))
+            {
+                return Results.BadRequest(new { error = authservErr });
+            }
+
             try
             {
-                var result = await parser.ParseTextAsync(request.Content);
+                var result = await parser.ParseTextAsync(request.Content, authservId);
                 return Results.Ok(result);
             }
             catch (InvalidEmailException ex)
@@ -184,5 +195,28 @@ public static class StripEndpoints
             var report = auditService.GenerateReport();
             return Results.Ok(report);
         });
+    }
+
+    internal static bool TryResolveAuthservId(string? primary, HttpRequest req, out string? id, out string? error)
+    {
+        string? raw = !string.IsNullOrWhiteSpace(primary)
+            ? primary
+            : req.Headers.TryGetValue("X-Expected-Authserv-Id", out var h) && !string.IsNullOrWhiteSpace(h)
+                ? h.ToString()
+                : req.Query.TryGetValue("authservId", out var q) && !string.IsNullOrWhiteSpace(q)
+                    ? q.ToString()
+                    : null;
+
+        id = raw?.Trim();
+        error = null;
+        if (id != null)
+        {
+            if (id.Length > 255 || id.Any(c => char.IsControl(c) && c != '\t'))
+            {
+                error = "authservId cannot exceed 255 characters or contain control characters.";
+                return false;
+            }
+        }
+        return true;
     }
 }
