@@ -9,7 +9,8 @@ Drop an `.eml` email or paste text, and `mailStripper` instantly provides:
 2. 📝 **Short Summary**: Concise bullet points highlighting key dates, facts, and deliverables without reply chain clutter or legal disclaimers.
 3. 📎 **Attachment Extraction**: Card gallery with file type categories, instant inline previews (images/text/CSV), and a single-click **"Download All as .ZIP"** bundle.
 4. 🛡️ **100% Local-Only & Air-Gapped**: Proves zero external network egress (strict CSP), zero disk storage (volatile RAM only), and zero telemetry.
-5. 🤖 **Optional ML Integration**: Works 100% standalone out-of-the-box with high-speed extractive summarization, and seamlessly pairs with the public [`event-driven-ftaas`](https://github.com/knowthankyew/event-driven-ftaas) microservice (`SmolLM2-135M` on `http://localhost:8000`) for generative understanding when available. *(See [Optional: Enable Generative Summaries](#-optional-enable-generative-summaries) for setup.)*
+5. 🔍 **Unsubscribe Forensics & Link Shield (`v1.1.0`)**: Statically inspects `List-Unsubscribe` / `List-Unsubscribe-Post` (RFC 2369 / RFC 8058) headers, exact `DKIM-Signature` (`d=`, `s=`, `b=`, `h=`) bindings, and body anchors to separate conforming opt-out candidates from punycode/spoofed phishing traps, generate sterile zero-cookie `curl` commands, and defang hyperlinks inside the Sanitized HTML preview.
+6. 🤖 **Optional ML Integration**: Works 100% standalone out-of-the-box with high-speed extractive summarization, and seamlessly pairs with the public [`event-driven-ftaas`](https://github.com/knowthankyew/event-driven-ftaas) microservice (`SmolLM2-135M` on `http://localhost:8000`) for generative understanding when available. *(See [Optional: Enable Generative Summaries](#-optional-enable-generative-summaries) for setup.)*
 
 ---
 
@@ -72,17 +73,19 @@ For developers or automated pipelines, `mailStripper` exposes simple REST endpoi
 - `GET /api/strip/{id}/attachments/{index}`: Download specific extracted attachment.
 - `GET /api/strip/{id}/attachments/download-all`: Download all attachments in a single `.zip` bundle.
 - `GET /api/strip/sample`: Returns a pre-parsed demo email with 3 attachments for 1-click testing.
+- `GET /api/strip/sample/newsletter`: Returns a pre-parsed RFC 8058 One-Click newsletter fixture for unsubscribe forensic testing.
+- `GET /api/strip/sample/poison-trap`: Returns a pre-parsed poisoned unsubscribe trap fixture (punycode + deceptive anchor text) for threat detection testing.
 - `GET /api/strip/privacy-audit`: Cryptographic audit proving zero outbound sockets and volatile storage.
 
 ---
 
 ## 🧪 Testing
 
-- **.NET Unit Tests**: 19 automated xUnit tests covering RFC 822 parsing, subject cleaning, intent extraction, and air-gapped guarantees:
+- **.NET Unit Tests**: 50 automated xUnit tests covering RFC 822 parsing, RFC 8058/2369/6376/8601 unsubscribe forensics, subject cleaning, intent extraction, and air-gapped guarantees:
   ```bash
   dotnet test
   ```
-- **Playwright E2E Tests**: 5 automated browser tests verifying UI workflows, attachment modals, and invalid file guardrails:
+- **Playwright E2E Tests**: 8 automated browser tests verifying UI workflows, unsubscribe shield verdicts, defanged HTML preview links, attachment modals, and invalid file guardrails:
   ```bash
   npm test
   ```

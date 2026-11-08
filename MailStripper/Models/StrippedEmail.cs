@@ -30,6 +30,9 @@ public class StrippedEmail
     public long TotalAttachmentBytes { get; set; }
     public string TotalAttachmentSizeFormatted { get; set; } = "0 B";
     public string DownloadAllZipUrl { get; set; } = string.Empty;
+
+    // Air-Gapped Unsubscribe Forensics
+    public UnsubscribeForensicReport Unsubscribe { get; set; } = new();
 }
 
 public class StripTextRequest

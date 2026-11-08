@@ -77,10 +77,16 @@
         </div>
 
         <div class="quick-demo-bar">
-          <span class="quick-demo-label">No .eml file handy?</span>
-          <button class="btn btn-demo" id="loadSampleBtn">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          <span class="quick-demo-label">Quick fixtures:</span>
+          <button type="button" class="btn btn-demo" id="loadSampleBtn">
+            <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
             ⚡ Load Sample Email (3 Attachments)
+          </button>
+          <button type="button" class="btn btn-demo btn-demo-emerald" id="loadNewsletterSampleBtn">
+            🛡️ Demo: Legit RFC 8058
+          </button>
+          <button type="button" class="btn btn-demo btn-demo-rose" id="loadTrapSampleBtn">
+            🚨 Demo: Poisoned Unsubscribe
           </button>
           <a class="btn-link" id="downloadSampleLink" href="/api/strip/sample/download" download="sample_enterprise_email.eml">
             Download Sample .eml
@@ -223,6 +229,55 @@
             </div>
           </div>
         </div>
+      </div>
+
+      <!-- Air-Gapped Unsubscribe Forensics & Link Shield Section -->
+      <div class="unsub-shield-section" id="resUnsubSection" data-verdict="NoUnsubscribeFound">
+        <div class="unsub-header">
+          <div class="unsub-title-group">
+            <div class="unsub-icon-badge" id="unsubIconBadge" aria-hidden="true">
+              <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            </div>
+            <div>
+              <h3 class="unsub-heading">Unsubscribe Forensics &amp; Link Shield</h3>
+              <p class="unsub-subheading" id="unsubSummaryText">No unsubscribe headers or opt-out links detected in this message.</p>
+            </div>
+          </div>
+          <div class="unsub-badges-row">
+            <span class="unsub-verdict-pill" id="unsubVerdictBadge">No Unsubscribe Detected</span>
+            <span class="unsub-prov-pill" id="unsubProvenanceBadge">Provenance: N/A</span>
+            <span class="unsub-risk-pill" id="unsubRiskBadge">Risk: 0/100</span>
+          </div>
+        </div>
+
+        <div class="unsub-checks-grid" id="unsubChecksRow"></div>
+
+        <div class="unsub-poison-box" id="unsubPoisonBox" hidden>
+          <p class="unsub-poison-title">Blocked Threat &amp; Asymmetry Signals:</p>
+          <ul class="unsub-signals-list" id="unsubSignalsList" role="list"></ul>
+        </div>
+
+        <div class="unsub-recon-warning" id="unsubReconBox" hidden>
+          <p id="unsubReconText"></p>
+        </div>
+
+        <div class="unsub-sterile-box" id="unsubCurlBox" hidden>
+          <div class="unsub-sterile-header">
+            <span class="unsub-sterile-label" id="unsubSterileLabel">Sterile RFC 8058 One-Click POST (Zero Cookies · Zero Redirects · Response Discarded)</span>
+            <button type="button" class="btn btn-secondary btn-sm" id="copyUnsubActionBtn" aria-label="Copy Sterile curl command to clipboard">
+              Copy Sterile curl
+            </button>
+          </div>
+          <pre class="unsub-curl-pre" tabindex="0"><code id="unsubActionCode"></code></pre>
+        </div>
+
+        <details class="unsub-details" id="unsubCandidatesDrawer" hidden>
+          <summary class="unsub-details-summary">
+            <span id="unsubCandidatesSummaryLabel">Inspect Extracted Unsubscribe Candidates (0)</span>
+            <svg aria-hidden="true" class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+          </summary>
+          <ul class="unsub-candidates-list" id="unsubCandidatesList" role="list"></ul>
+        </details>
       </div>
 
       <!-- Hero Attachments Section -->

@@ -17,6 +17,7 @@ builder.Services.Configure<SummarizerOptions>(builder.Configuration.GetSection("
 builder.Services.AddSingleton<IAttachmentStore, MemoryAttachmentStore>();
 builder.Services.AddSingleton<ExtractiveEmailSummarizer>();
 builder.Services.AddSingleton<IEmailSummarizer, MlHybridSummarizer>();
+builder.Services.AddSingleton<IUnsubscribeForensicAnalyzer, UnsubscribeForensicAnalyzer>();
 builder.Services.AddSingleton<PrivacyAuditService>();
 builder.Services.AddScoped<IEmailParser, MimeKitEmailParser>();
 

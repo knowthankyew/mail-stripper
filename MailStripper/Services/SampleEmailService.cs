@@ -108,4 +108,64 @@ Principal Cloud Architect | Vanguard Tech</p>
         message.WriteTo(ms);
         return ms.ToArray();
     }
+
+    public static byte[] GenerateSampleNewsletterEml()
+    {
+        var raw =
+            "Received: from mta-14.sendgrid.net (mta-14.sendgrid.net [149.72.18.14])\r\n" +
+            "\tby mx.local.example with ESMTPS id q82f91;\r\n" +
+            "\tSun, 08 Nov 2026 07:00:00 -0600\r\n" +
+            "Authentication-Results: mx.local.example;\r\n" +
+            "\tdkim=pass header.d=systems-digest.io header.s=s2026 header.b=ZmFrZVNp;\r\n" +
+            "\tspf=pass smtp.mailfrom=bounces@systems-digest.io;\r\n" +
+            "\tdmarc=pass (p=REJECT) header.from=systems-digest.io\r\n" +
+            "DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=systems-digest.io; s=s2026;\r\n" +
+            "\th=from:to:subject:date:list-unsubscribe:list-unsubscribe-post;\r\n" +
+            "\tbh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=;\r\n" +
+            "\tb=ZmFrZVNpZ25hdHVyZUJpdHNGb3JEZW1vRml4dHVyZUV2YWx1YXRpb24=\r\n" +
+            "Return-Path: <bounces@systems-digest.io>\r\n" +
+            "From: Systems Engineering Digest <digest@systems-digest.io>\r\n" +
+            "To: Reader <engineer@local.example>\r\n" +
+            "Subject: Issue #48: Zero-Copy Kernel I/O & Memory-Safe Parsers\r\n" +
+            "Date: Sun, 08 Nov 2026 07:00:00 -0600\r\n" +
+            "Message-ID: <issue-48-2026@systems-digest.io>\r\n" +
+            "List-Unsubscribe: <mailto:leave-48@systems-digest.io?subject=unsubscribe>, <https://optout.systems-digest.io/rfc8058/one-click?sub=9f82a1>\r\n" +
+            "List-Unsubscribe-Post: List-Unsubscribe=One-Click\r\n" +
+            "MIME-Version: 1.0\r\n" +
+            "Content-Type: text/html; charset=utf-8\r\n\r\n" +
+            "<div style='font-family:sans-serif;line-height:1.6;'>" +
+            "<h2>Issue #48: Zero-Copy Kernel I/O</h2>" +
+            "<p>This week we benchmarked io_uring buffer rings, non-backtracking DFA regular expressions, and volatile RAM stream processing across .NET 10 services.</p>" +
+            "<ul><li>Latency p99 dropped by 34% under 50 MB payload saturation.</li><li>Zero temporary files touched disk during fuzzing runs.</li></ul>" +
+            "<hr/><p style='font-size:12px;color:#64748b;'>You are subscribed to Systems Engineering Digest. " +
+            "<a href='https://optout.systems-digest.io/preferences?sub=9f82a1'>Manage email preferences or unsubscribe</a>.</p>" +
+            "</div>";
+
+        return Encoding.UTF8.GetBytes(raw);
+    }
+
+    public static byte[] GenerateSamplePoisonTrapEml()
+    {
+        var raw =
+            "Received: from unknown-relay.example ([198.51.100.77])\r\n" +
+            "\tby mx.local.example with ESMTP id trap991;\r\n" +
+            "\tSun, 08 Nov 2026 07:05:00 -0600\r\n" +
+            "Authentication-Results: mx.local.example;\r\n" +
+            "\tdkim=none;\r\n" +
+            "\tspf=softfail smtp.mailfrom=alert@payroll-notify.example\r\n" +
+            "From: Corporate Security Notice <alerts@vanguard-tech.io>\r\n" +
+            "To: Employee <staff@vanguard-tech.io>\r\n" +
+            "Subject: [Action Required] Mandatory MFA Token Re-Enrollment\r\n" +
+            "Date: Sun, 08 Nov 2026 07:05:00 -0600\r\n" +
+            "Message-ID: <mfa-trap-991@relay.invalid>\r\n" +
+            "MIME-Version: 1.0\r\n" +
+            "Content-Type: text/html; charset=utf-8\r\n\r\n" +
+            "<div style='font-family:sans-serif;line-height:1.6;'>" +
+            "<p>Your corporate workstation token expires at 5:00 PM today. Review your session settings immediately to avoid lockout.</p>" +
+            "<p>If you no longer wish to receive automated security alerts, click below:</p>" +
+            "<p><a href='https://xn--vanguard-t3ch-99a.example/unsub-confirm?beacon=staff_active'>https://vanguard-tech.io/unsubscribe</a></p>" +
+            "</div>";
+
+        return Encoding.UTF8.GetBytes(raw);
+    }
 }

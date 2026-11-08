@@ -230,6 +230,102 @@ Lead Security Auditor`;
     assert(isPrivacyFocused, 'Expected focus to be restored to #privacyAuditBtn upon closing privacy modal');
   });
 
+  // Test 7: Legitimate RFC 8058 Newsletter Forensics & Sterile One-Click POST Generation
+  await test('RFC 8058 Newsletter Demo: Verify OneClickPostCandidate, recon warning, sterile curl, and defanged HTML links', async () => {
+    await page.click('#loadNewsletterSampleBtn');
+    await page.waitForSelector('#resultsSection', { state: 'visible', timeout: 15000 });
+
+    const verdict = await page.$eval('#resUnsubSection', el => el.getAttribute('data-verdict'));
+    assert.strictEqual(verdict, 'OneClickPostCandidate', `Expected OneClickPostCandidate, got: ${verdict}`);
+
+    const provText = await page.textContent('#unsubProvenanceBadge');
+    assert(provText && provText.includes('Unverified .eml Upload'), `Expected Unverified .eml Upload provenance, got: ${provText}`);
+
+    const isReconHidden = await page.$eval('#unsubReconBox', el => el.hidden);
+    assert.strictEqual(isReconHidden, false, 'Expected active-inbox recon warning box to be visible');
+    const reconText = await page.textContent('#unsubReconText');
+    assert(reconText && reconText.includes('mailbox is active'), `Expected active mailbox warning, got: ${reconText}`);
+
+    const isCurlHidden = await page.$eval('#unsubCurlBox', el => el.hidden);
+    assert.strictEqual(isCurlHidden, false, 'Expected sterile curl box to be visible for conforming RFC 8058 candidate');
+
+    const curlCode = await page.textContent('#unsubActionCode');
+    assert(curlCode.includes('--globoff'), 'Sterile curl must include --globoff');
+    assert(curlCode.includes("--proto '=https'"), "Sterile curl must enforce --proto '=https'");
+    assert(curlCode.includes('--max-redirs 0'), 'Sterile curl must disable redirects');
+    assert(curlCode.includes('-o /dev/null'), 'Sterile curl must discard response body');
+    assert(curlCode.includes("-d 'List-Unsubscribe=One-Click'"), 'Sterile curl must send RFC 8058 One-Click body');
+
+    // WCAG 2.5.3 Label in Name check on Copy Sterile curl button
+    const copyVisibleText = (await page.textContent('#copyUnsubActionBtn')).trim();
+    const copyAriaLabel = await page.$eval('#copyUnsubActionBtn', el => el.getAttribute('aria-label'));
+    assert(copyAriaLabel && copyAriaLabel.includes(copyVisibleText),
+      `Expected aria-label "${copyAriaLabel}" to include visible button text "${copyVisibleText}"`);
+
+    // Open Body Inspector & switch to Sanitized HTML tab to verify link defanging
+    const isInspectorOpen = await page.$eval('#bodyInspector', el => el.open);
+    if (!isInspectorOpen) {
+      await page.click('#bodyInspector > summary');
+    }
+    await page.click('#tabBodyHtml');
+    await page.waitForSelector('#panelBodyHtml', { state: 'visible', timeout: 2000 });
+
+    const liveAnchors = await page.$$('#resBodyHtml a');
+    assert.strictEqual(liveAnchors.length, 0, `Expected 0 clickable <a> tags in Sanitized HTML preview, found ${liveAnchors.length}`);
+
+    const defangedBadges = await page.$$eval('#resBodyHtml .defanged-link-host', els => els.map(e => e.textContent));
+    assert(defangedBadges.some(t => t.includes('optout.systems-digest.io')),
+      `Expected defanged host badge for optout.systems-digest.io, got: ${JSON.stringify(defangedBadges)}`);
+  });
+
+  // Test 8: Poisoned Phishing Unsubscribe Trap Blocked & HTML Link Defanged
+  await test('Poisoned Unsubscribe Trap Demo: Verify PoisonOrReconTrap block, threat signals, and defanged homograph link', async () => {
+    await page.click('#stripAnotherBtn');
+    await page.waitForSelector('#ingestionSection', { state: 'visible', timeout: 2000 });
+
+    await page.click('#loadTrapSampleBtn');
+    await page.waitForSelector('#resultsSection', { state: 'visible', timeout: 15000 });
+
+    const verdict = await page.$eval('#resUnsubSection', el => el.getAttribute('data-verdict'));
+    assert.strictEqual(verdict, 'PoisonOrReconTrap', `Expected PoisonOrReconTrap, got: ${verdict}`);
+
+    const isPoisonHidden = await page.$eval('#unsubPoisonBox', el => el.hidden);
+    assert.strictEqual(isPoisonHidden, false, 'Expected poison signals box to be visible');
+
+    const listRole = await page.$eval('#unsubSignalsList', el => el.getAttribute('role'));
+    assert.strictEqual(listRole, 'list', 'Expected role="list" on custom-styled #unsubSignalsList');
+
+    const signals = await page.$$eval('#unsubSignalsList li', els => els.map(e => e.textContent));
+    assert(signals.some(s => s.toLowerCase().includes('punycode')), `Expected punycode signal in: ${JSON.stringify(signals)}`);
+    assert(signals.some(s => s.toLowerCase().includes('anchor text')), `Expected deceptive anchor-text signal in: ${JSON.stringify(signals)}`);
+
+    // Sterile curl box MUST remain hidden for poisoned targets
+    const isCurlHidden = await page.$eval('#unsubCurlBox', el => el.hidden);
+    assert.strictEqual(isCurlHidden, true, 'Expected sterile curl box to be hidden when PoisonOrReconTrap is detected');
+
+    // Open Sanitized HTML tab and verify deceptive link is defanged and unmasks true xn-- punycode host
+    const isInspectorOpen = await page.$eval('#bodyInspector', el => el.open);
+    if (!isInspectorOpen) {
+      await page.click('#bodyInspector > summary');
+    }
+    await page.click('#tabBodyHtml');
+    await page.waitForSelector('#panelBodyHtml', { state: 'visible', timeout: 2000 });
+
+    const liveAnchors = await page.$$('#resBodyHtml a');
+    assert.strictEqual(liveAnchors.length, 0, 'Expected zero <a> elements inside Sanitized HTML preview');
+
+    const defangedText = await page.textContent('#resBodyHtml .defanged-link');
+    assert(defangedText.includes('xn--vanguard-t3ch-99a.example'),
+      `Expected defanged badge to unmask punycode host xn--vanguard-t3ch-99a.example, got: ${defangedText}`);
+
+    // Click the defanged span and verify zero navigation or popup occurs
+    const pagesBefore = page.context().pages().length;
+    const urlBefore = page.url();
+    await page.click('#resBodyHtml .defanged-link');
+    assert.strictEqual(page.url(), urlBefore, 'Clicking defanged link must not change current page URL');
+    assert.strictEqual(page.context().pages().length, pagesBefore, 'Clicking defanged link must not open a new tab');
+  });
+
   console.log(`\n🎉 All ${passed}/${total} Playwright E2E Tests Passed Successfully!\n`);
 }
 

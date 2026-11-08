@@ -10,15 +10,18 @@ public partial class MimeKitEmailParser : IEmailParser
     private readonly IEmailSummarizer _summarizer;
     private readonly IAttachmentStore _attachmentStore;
     private readonly ILogger<MimeKitEmailParser> _logger;
+    private readonly IUnsubscribeForensicAnalyzer _unsubscribeAnalyzer;
 
     public MimeKitEmailParser(
         IEmailSummarizer summarizer,
         IAttachmentStore attachmentStore,
-        ILogger<MimeKitEmailParser> logger)
+        ILogger<MimeKitEmailParser> logger,
+        IUnsubscribeForensicAnalyzer? unsubscribeAnalyzer = null)
     {
         _summarizer = summarizer;
         _attachmentStore = attachmentStore;
         _logger = logger;
+        _unsubscribeAnalyzer = unsubscribeAnalyzer ?? new UnsubscribeForensicAnalyzer();
     }
 
     public async Task<StrippedEmail> ParseStreamAsync(Stream stream, string? originalFileName = null, CancellationToken ct = default)
@@ -183,6 +186,7 @@ public partial class MimeKitEmailParser : IEmailParser
 
         var totalBytes = attachmentInfos.Sum(a => a.SizeBytes);
         var wordCount = bodyText.Split(new[] { ' ', '\r', '\n', '\t' }, StringSplitOptions.RemoveEmptyEntries).Length;
+        var unsubscribeForensics = _unsubscribeAnalyzer.Analyze(message);
 
         return new StrippedEmail
         {
@@ -206,7 +210,8 @@ public partial class MimeKitEmailParser : IEmailParser
             Attachments = attachmentInfos,
             TotalAttachmentBytes = totalBytes,
             TotalAttachmentSizeFormatted = FormatBytes(totalBytes),
-            DownloadAllZipUrl = attachmentInfos.Count > 0 ? $"/api/strip/{sessionId}/attachments/download-all" : string.Empty
+            DownloadAllZipUrl = attachmentInfos.Count > 0 ? $"/api/strip/{sessionId}/attachments/download-all" : string.Empty,
+            Unsubscribe = unsubscribeForensics
         };
     }
 
@@ -264,7 +269,7 @@ public partial class MimeKitEmailParser : IEmailParser
 
     private static bool LooksLikeRfc822(string text)
     {
-        var firstLines = text.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).Take(15);
+        var firstLines = text.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).Take(60);
         int headerCount = 0;
         foreach (var line in firstLines)
         {
@@ -272,7 +277,14 @@ public partial class MimeKitEmailParser : IEmailParser
                 line.StartsWith("To:", StringComparison.OrdinalIgnoreCase) ||
                 line.StartsWith("Subject:", StringComparison.OrdinalIgnoreCase) ||
                 line.StartsWith("Date:", StringComparison.OrdinalIgnoreCase) ||
-                line.StartsWith("Content-Type:", StringComparison.OrdinalIgnoreCase))
+                line.StartsWith("Content-Type:", StringComparison.OrdinalIgnoreCase) ||
+                line.StartsWith("Received:", StringComparison.OrdinalIgnoreCase) ||
+                line.StartsWith("Authentication-Results:", StringComparison.OrdinalIgnoreCase) ||
+                line.StartsWith("DKIM-Signature:", StringComparison.OrdinalIgnoreCase) ||
+                line.StartsWith("MIME-Version:", StringComparison.OrdinalIgnoreCase) ||
+                line.StartsWith("Message-ID:", StringComparison.OrdinalIgnoreCase) ||
+                line.StartsWith("Return-Path:", StringComparison.OrdinalIgnoreCase) ||
+                line.StartsWith("List-Unsubscribe:", StringComparison.OrdinalIgnoreCase))
             {
                 headerCount++;
             }

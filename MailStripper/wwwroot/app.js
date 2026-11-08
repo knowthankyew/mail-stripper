@@ -13,6 +13,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const submitPasteBtn = document.getElementById('submitPasteBtn');
   const clearPasteBtn = document.getElementById('clearPasteBtn');
   const loadSampleBtn = document.getElementById('loadSampleBtn');
+  const loadNewsletterSampleBtn = document.getElementById('loadNewsletterSampleBtn');
+  const loadTrapSampleBtn = document.getElementById('loadTrapSampleBtn');
 
   const ingestionSection = document.getElementById('ingestionSection');
   const loadingSection = document.getElementById('loadingSection');
@@ -48,6 +50,25 @@ document.addEventListener('DOMContentLoaded', () => {
   const tabBodyHtml = document.getElementById('tabBodyHtml');
   const panelBodyText = document.getElementById('panelBodyText');
   const panelBodyHtml = document.getElementById('panelBodyHtml');
+
+  // Unsubscribe Forensics Elements
+  const resUnsubSection = document.getElementById('resUnsubSection');
+  const unsubSummaryText = document.getElementById('unsubSummaryText');
+  const unsubVerdictBadge = document.getElementById('unsubVerdictBadge');
+  const unsubProvenanceBadge = document.getElementById('unsubProvenanceBadge');
+  const unsubRiskBadge = document.getElementById('unsubRiskBadge');
+  const unsubChecksRow = document.getElementById('unsubChecksRow');
+  const unsubPoisonBox = document.getElementById('unsubPoisonBox');
+  const unsubSignalsList = document.getElementById('unsubSignalsList');
+  const unsubReconBox = document.getElementById('unsubReconBox');
+  const unsubReconText = document.getElementById('unsubReconText');
+  const unsubCurlBox = document.getElementById('unsubCurlBox');
+  const unsubSterileLabel = document.getElementById('unsubSterileLabel');
+  const copyUnsubActionBtn = document.getElementById('copyUnsubActionBtn');
+  const unsubActionCode = document.getElementById('unsubActionCode');
+  const unsubCandidatesDrawer = document.getElementById('unsubCandidatesDrawer');
+  const unsubCandidatesSummaryLabel = document.getElementById('unsubCandidatesSummaryLabel');
+  const unsubCandidatesList = document.getElementById('unsubCandidatesList');
 
   // Modal Elements
   const previewModal = document.getElementById('previewModal');
@@ -342,10 +363,48 @@ document.addEventListener('DOMContentLoaded', () => {
       renderStrippedEmail(data);
     } catch (err) {
       console.error(err);
-      alert('Could not load sample email.');
+      showError('Sample Error', 'Could not load sample email.');
       showIngestion();
     }
   });
+
+  if (loadNewsletterSampleBtn) {
+    loadNewsletterSampleBtn.addEventListener('click', async () => {
+      hideError();
+      showLoading('Loading RFC 8058 newsletter fixture...');
+      try {
+        const response = await fetch('/api/strip/sample/newsletter');
+        if (!response.ok) {
+          throw new Error('Failed to load newsletter sample');
+        }
+        const data = await response.json();
+        renderStrippedEmail(data);
+      } catch (err) {
+        console.error(err);
+        showError('Sample Error', 'Could not load RFC 8058 newsletter fixture.');
+        showIngestion();
+      }
+    });
+  }
+
+  if (loadTrapSampleBtn) {
+    loadTrapSampleBtn.addEventListener('click', async () => {
+      hideError();
+      showLoading('Loading poisoned unsubscribe trap fixture...');
+      try {
+        const response = await fetch('/api/strip/sample/poison-trap');
+        if (!response.ok) {
+          throw new Error('Failed to load poison-trap sample');
+        }
+        const data = await response.json();
+        renderStrippedEmail(data);
+      } catch (err) {
+        console.error(err);
+        showError('Sample Error', 'Could not load poisoned unsubscribe fixture.');
+        showIngestion();
+      }
+    });
+  }
 
   // Render Stripped Email Results
   function renderStrippedEmail(data) {
@@ -383,21 +442,219 @@ document.addEventListener('DOMContentLoaded', () => {
     resRawSubject.title = resRawSubject.textContent;
     resWordCount.textContent = `${data.wordCount} words`;
 
+    // Unsubscribe Forensics & Shield
+    renderUnsubscribeForensics(data.unsubscribe);
+
     // Attachments
     renderAttachments(data);
 
     // Body Inspector
     resBodyText.textContent = data.bodyText || '(No plain text body content found)';
     if (data.hasHtml && data.bodyHtml) {
-      resBodyHtml.innerHTML = sanitizeHtmlPreview(data.bodyHtml);
+      renderSanitizedHtmlPreview(resBodyHtml, data.bodyHtml);
       tabBodyHtml.style.display = 'inline-block';
     } else {
-      resBodyHtml.innerHTML = '<p style="color:#64748b;">No HTML version present in this message.</p>';
+      const emptyP = document.createElement('p');
+      emptyP.style.color = '#64748b';
+      emptyP.textContent = 'No HTML version present in this message.';
+      resBodyHtml.replaceChildren(emptyP);
       tabBodyHtml.style.display = 'none';
     }
     switchInspectorTab('text');
 
     showResults();
+  }
+
+  let currentUnsubCopyPayload = '';
+
+  if (copyUnsubActionBtn) {
+    copyUnsubActionBtn.addEventListener('click', () => {
+      if (!currentUnsubCopyPayload) return;
+      navigator.clipboard.writeText(currentUnsubCopyPayload).then(() => {
+        const origLabel = copyUnsubActionBtn.textContent;
+        const origAria = copyUnsubActionBtn.getAttribute('aria-label') || 'Copy command';
+        copyUnsubActionBtn.textContent = '✓ Copied!';
+        copyUnsubActionBtn.setAttribute('aria-label', '✓ Copied! Unsubscribe value copied to clipboard');
+        announceToScreenReader('Unsubscribe value copied to clipboard');
+        setTimeout(() => {
+          copyUnsubActionBtn.textContent = origLabel;
+          copyUnsubActionBtn.setAttribute('aria-label', origAria);
+        }, 1800);
+      });
+    });
+  }
+
+  function renderUnsubscribeForensics(unsub) {
+    if (!resUnsubSection) return;
+    const report = unsub || {
+      classification: 'NoUnsubscribeFound',
+      provenance: 'MissingAuthHeaders',
+      riskScore: 0,
+      summaryVerdict: 'No unsubscribe headers or opt-out links detected in this message.',
+      reconWarning: '',
+      headerContextAvailable: true,
+      hasRfc8058OneClickPost: false,
+      singleUnambiguousHeader: true,
+      dkimCoversUnsubscribeHeaders: false,
+      alignedWithSenderOrKnownEsp: false,
+      poisonSignals: [],
+      candidates: []
+    };
+
+    const verdict = report.classification || 'NoUnsubscribeFound';
+    resUnsubSection.setAttribute('data-verdict', verdict);
+    unsubSummaryText.textContent = report.summaryVerdict || '';
+    unsubRiskBadge.textContent = `Risk: ${Number(report.riskScore || 0)}/100`;
+
+    const verdictLabels = {
+      OneClickPostCandidate: '🛡️ RFC 8058 One-Click Candidate',
+      MailtoCandidate: '✉️ RFC 2369 Mailto Candidate',
+      HttpLandingCandidate: '⚠️ Interactive Web Landing',
+      PoisonOrReconTrap: '🚨 Poison / Recon Trap Blocked',
+      NoUnsubscribeFound: '— No Unsubscribe Detected'
+    };
+    unsubVerdictBadge.textContent = verdictLabels[verdict] || verdict;
+
+    const provLabels = {
+      UnverifiedUpload: 'Provenance: Unverified .eml Upload',
+      MissingAuthHeaders: 'Provenance: No MX Auth Headers',
+      SyntheticPastedBody: 'Provenance: Pasted Snippet',
+      AmbiguousOrForgedHeader: 'Provenance: Ambiguous / Forged Header'
+    };
+    unsubProvenanceBadge.textContent = provLabels[report.provenance] || `Provenance: ${report.provenance || 'N/A'}`;
+
+    // Build check chips with createElement + textContent
+    const chips = [];
+    const addChip = (label, statusClass) => {
+      const span = document.createElement('span');
+      span.className = `unsub-check-chip ${statusClass}`;
+      span.textContent = label;
+      chips.push(span);
+    };
+
+    if (!report.headerContextAvailable) {
+      addChip('Headers: Synthetic Paste (Body Only)', 'warn');
+    } else {
+      addChip(
+        report.singleUnambiguousHeader ? '✓ Single Header Instance' : '✕ Duplicate Unsubscribe Header',
+        report.singleUnambiguousHeader ? 'pass' : 'fail'
+      );
+      addChip(
+        report.hasRfc8058OneClickPost ? '✓ RFC 8058 One-Click Header' : '— No RFC 8058 One-Click Header',
+        report.hasRfc8058OneClickPost ? 'pass' : ''
+      );
+      addChip(
+        report.dkimCoversUnsubscribeHeaders ? '✓ DKIM h= Covers Unsubscribe' : '— DKIM h= Unbound / Absent',
+        report.dkimCoversUnsubscribeHeaders ? 'pass' : (verdict === 'NoUnsubscribeFound' ? '' : 'warn')
+      );
+    }
+
+    if (report.candidates && report.candidates.length > 0) {
+      addChip(
+        report.alignedWithSenderOrKnownEsp
+          ? `✓ ${report.alignmentReason || 'Aligned with Sender/ESP'}`
+          : '✕ Domain Unaligned with Sender',
+        report.alignedWithSenderOrKnownEsp ? 'pass' : 'fail'
+      );
+    }
+    addChip('🔒 HTML Preview Links Defanged', 'pass');
+    unsubChecksRow.replaceChildren(...chips);
+
+    // Poison Signals Box
+    const signals = Array.isArray(report.poisonSignals) ? report.poisonSignals : [];
+    if (signals.length > 0) {
+      const liNodes = signals.map(sig => {
+        const li = document.createElement('li');
+        li.textContent = sig;
+        return li;
+      });
+      unsubSignalsList.replaceChildren(...liNodes);
+      unsubPoisonBox.hidden = false;
+    } else {
+      unsubSignalsList.replaceChildren();
+      unsubPoisonBox.hidden = true;
+    }
+
+    // Recon Warning Box
+    if (report.reconWarning) {
+      unsubReconText.textContent = report.reconWarning;
+      unsubReconBox.hidden = false;
+    } else {
+      unsubReconText.textContent = '';
+      unsubReconBox.hidden = true;
+    }
+
+    // Sterile curl / sanitized mailto action box
+    currentUnsubCopyPayload = '';
+    if (report.sterileCurlCommand) {
+      currentUnsubCopyPayload = report.sterileCurlCommand;
+      unsubSterileLabel.textContent = 'Sterile RFC 8058 One-Click POST (Zero Cookies · Zero Redirects · Response Discarded)';
+      copyUnsubActionBtn.textContent = 'Copy Sterile curl';
+      copyUnsubActionBtn.setAttribute('aria-label', 'Copy Sterile curl command to clipboard');
+      unsubActionCode.textContent = report.sterileCurlCommand;
+      unsubCurlBox.hidden = false;
+    } else if (report.sanitizedMailtoUri) {
+      currentUnsubCopyPayload = report.sanitizedMailtoUri;
+      unsubSterileLabel.textContent = 'Sanitized RFC 2369 Mailto Target (RFC 6068 Allowlisted Query)';
+      copyUnsubActionBtn.textContent = 'Copy Sanitized mailto';
+      copyUnsubActionBtn.setAttribute('aria-label', 'Copy Sanitized mailto URI to clipboard');
+      unsubActionCode.textContent = report.sanitizedMailtoUri;
+      unsubCurlBox.hidden = false;
+    } else {
+      unsubActionCode.textContent = '';
+      unsubCurlBox.hidden = true;
+    }
+
+    // Candidates Inventory Drawer
+    const candidates = Array.isArray(report.candidates) ? report.candidates : [];
+    if (candidates.length > 0) {
+      unsubCandidatesSummaryLabel.textContent = `Inspect Extracted Unsubscribe Candidates (${candidates.length})`;
+      const candItems = candidates.map(cand => {
+        const li = document.createElement('li');
+        li.className = 'unsub-candidate-item';
+
+        const top = document.createElement('div');
+        top.className = 'unsub-candidate-top';
+
+        const srcSpan = document.createElement('span');
+        srcSpan.className = 'unsub-candidate-source';
+        srcSpan.textContent = `${cand.source} [${cand.scheme || 'unknown'}]`;
+
+        const alignSpan = document.createElement('span');
+        alignSpan.className = `unsub-check-chip ${cand.alignedWithSenderOrEsp ? 'pass' : 'warn'}`;
+        alignSpan.textContent = cand.alignedWithSenderOrEsp ? 'Aligned' : 'Unaligned';
+
+        top.append(srcSpan, alignSpan);
+
+        const uriDiv = document.createElement('div');
+        uriDiv.className = 'unsub-candidate-uri';
+        uriDiv.textContent = cand.sanitizedUri || '';
+
+        li.append(top, uriDiv);
+
+        if (cand.anchorText) {
+          const textDiv = document.createElement('div');
+          textDiv.className = 'unsub-candidate-uri';
+          textDiv.textContent = `Visible text: "${cand.anchorText}"`;
+          li.appendChild(textDiv);
+        }
+
+        if (Array.isArray(cand.riskFlags) && cand.riskFlags.length > 0) {
+          const flagsDiv = document.createElement('div');
+          flagsDiv.className = 'unsub-candidate-flags';
+          flagsDiv.textContent = `Flags: ${cand.riskFlags.join(' • ')}`;
+          li.appendChild(flagsDiv);
+        }
+
+        return li;
+      });
+      unsubCandidatesList.replaceChildren(...candItems);
+      unsubCandidatesDrawer.open = false;
+      unsubCandidatesDrawer.hidden = false;
+    } else {
+      unsubCandidatesList.replaceChildren();
+      unsubCandidatesDrawer.hidden = true;
+    }
   }
 
   function renderAttachments(data) {
@@ -653,27 +910,63 @@ document.addEventListener('DOMContentLoaded', () => {
     })[m]);
   }
 
-  function sanitizeHtmlPreview(html) {
-    const doc = new DOMParser().parseFromString(html, 'text/html');
-    // Remove dangerous scripts, iframes, objects, embeds, base, meta, and forms
-    doc.querySelectorAll('script, iframe, object, embed, base, meta, form').forEach(el => el.remove());
-    // Strip all inline on* event handler attributes and javascript: URLs
-    const allElements = doc.querySelectorAll('*');
-    allElements.forEach(el => {
+  function extractDefangedHostLabel(rawHref) {
+    if (!rawHref) return 'link defanged';
+    const trimmed = rawHref.trim();
+    if (/^\s*(?:javascript|data|vbscript|file):/i.test(trimmed)) {
+      return 'blocked dangerous URI';
+    }
+    const mailtoMatch = /^mailto:([^?]+)/i.exec(trimmed);
+    if (mailtoMatch) {
+      return `mailto:${mailtoMatch[1].slice(0, 48)}`;
+    }
+    const hostMatch = /^https?:\/\/(?:[^@\/\s]+@)?([^\/:?#\s]+)/i.exec(trimmed);
+    if (hostMatch) {
+      return `defanged: ${hostMatch[1].toLowerCase().slice(0, 56)}`;
+    }
+    return 'defanged link';
+  }
+
+  function renderSanitizedHtmlPreview(container, html) {
+    const doc = typeof Document.parseHTML === 'function'
+      ? Document.parseHTML(html)
+      : new DOMParser().parseFromString(html, 'text/html');
+
+    // Remove dangerous or active elements before moving nodes into the live document
+    doc.querySelectorAll('script, iframe, object, embed, base, meta, form, link, svg, math, audio, video, source, track, map, area').forEach(el => el.remove());
+
+    // Strip inline event handlers, ping/srcset beacons, CSS url() beacons, and remote image pixels
+    doc.querySelectorAll('*').forEach(el => {
       for (const attr of Array.from(el.attributes)) {
         const attrName = attr.name.toLowerCase();
-        if (attrName.startsWith('on')) {
+        if (attrName.startsWith('on') || attrName === 'ping' || attrName === 'srcset' || attrName === 'formaction') {
           el.removeAttribute(attr.name);
-        } else if ((attrName === 'href' || attrName === 'src') && /^\s*javascript:/i.test(attr.value)) {
+        } else if (attrName === 'style' && /url\s*\(/i.test(attr.value)) {
+          el.removeAttribute(attr.name);
+        } else if (attrName === 'src' && /^(?:\s*javascript:|\s*data:text\/html|\s*https?:|\s*\/\/)/i.test(attr.value)) {
+          el.removeAttribute(attr.name);
+        } else if (attrName === 'href' && /^\s*(?:javascript|data|vbscript|file):/i.test(attr.value)) {
           el.removeAttribute(attr.name);
         }
       }
     });
-    // Ensure all remaining links open safely in new tab
+
+    // Defang all <a> hyperlinks so clicking inside Sanitized HTML never navigates out of mailStripper's CSP
     doc.querySelectorAll('a').forEach(a => {
-      a.setAttribute('target', '_blank');
-      a.setAttribute('rel', 'noopener noreferrer');
+      const rawHref = a.getAttribute('href') || '';
+      const span = doc.createElement('span');
+      span.className = 'defanged-link';
+      span.append(...Array.from(a.childNodes));
+
+      const hostBadge = doc.createElement('span');
+      hostBadge.className = 'defanged-link-host';
+      hostBadge.textContent = `[🔒 ${extractDefangedHostLabel(rawHref)}]`;
+      span.appendChild(hostBadge);
+
+      a.replaceWith(span);
     });
-    return doc.body.innerHTML;
+
+    // Move sanitized DOM nodes directly without innerHTML re-serialization (prevents mXSS)
+    container.replaceChildren(...Array.from(doc.body.childNodes));
   }
 });

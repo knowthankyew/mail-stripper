@@ -46,8 +46,8 @@ To uphold `knowthankyew/mail-stripper`'s non-negotiable zero-egress and loopback
 
 | Milestone | Target Version | Governance Scope | Core Objective | Status |
 | :--- | :---: | :--- | :--- | :---: |
-| **Milestone 1** | `v1.1.0` | **In-Repo (`mailStripper`)** | Air-Gapped Unsubscribe Forensic Analyzer (`UnsubscribeForensicAnalyzer.cs`), HTML Preview Link Defanging & Web UI Shield Card | 📋 **Scoped (Next)** |
-| **Milestone 1.5** | `v1.1.5` | **In-Repo (`mailStripper`)** | Trusted `authserv-id` Optional Configuration & Byte-Preserving Multipart Forensics Verification | 📋 **Scoped** |
+| **Milestone 1** | `v1.1.0` | **In-Repo (`mailStripper`)** | Air-Gapped Unsubscribe Forensic Analyzer (`UnsubscribeForensicAnalyzer.cs`), HTML Preview Link Defanging & Web UI Shield Card | ✅ **Delivered** |
+| **Milestone 1.5** | `v1.1.5` | **In-Repo (`mailStripper`)** | Trusted `authserv-id` Optional Configuration & Byte-Preserving Multipart Forensics Verification | 📋 **Scoped (Next)** |
 | **Companion A** | `External Repo` | **Separate Repo (`unsubscribe-shield-ext`)** | Standalone Thunderbird MailExtension + Chromium/Firefox WebExtension (Governed Outside `mail-stripper`) | 🔭 **External Companion** |
 | **Companion B** | `External Repo` | **Separate Repo (`mail-stripper-imap`)** | Protocol-Level IMAP `@Safe-Unsubscribe` Quarantine Watcher (Governed Outside `mail-stripper`) | 🔭 **External Companion** |
 
@@ -55,23 +55,23 @@ To uphold `knowthankyew/mail-stripper`'s non-negotiable zero-egress and loopback
 
 ## 4. In-Repo Scoped Objectives (`knowthankyew/mail-stripper`)
 
-### Milestone 1 (`v1.1.0`): Air-Gapped Unsubscribe Forensic Engine & HTML Link Defanging
+### Milestone 1 (`v1.1.0`): Air-Gapped Unsubscribe Forensic Engine & HTML Link Defanging ✅
 
 #### Well-Scoped Objectives
-- [ ] **Define Forensic Models (`MailStripper/Models/UnsubscribeForensics.cs`)**:
+- [x] **Define Forensic Models (`MailStripper/Models/UnsubscribeForensics.cs`)**:
   - `UnsubscribeClassification`: Provenance-honest enum (`OneClickPostCandidate`, `MailtoCandidate`, `HttpLandingCandidate`, `PoisonOrReconTrap`, `NoUnsubscribeFound`). Never claims cryptographic verification on untrusted `.eml` uploads.
-  - `AuthenticationProvenance`: Enum (`UnverifiedUpload`, `MissingAuthHeaders`, `AmbiguousOrForgedHeader`) reflecting RFC 8601 trust boundaries on static `.eml` / pasted inputs.
+  - `AuthenticationProvenance`: Enum (`UnverifiedUpload`, `MissingAuthHeaders`, `SyntheticPastedBody`, `AmbiguousOrForgedHeader`) reflecting RFC 8601 trust boundaries on static `.eml` / pasted inputs.
   - `UnsubscribeCandidate`: Captures source (`HeaderListUnsubscribe`, `BodyHtmlAnchor`, `BodyPlainText`), sanitized URI, scheme (`https`, `http`, `mailto`), normalized host (with punycode decoding), visible anchor text, and individual risk flags.
-  - `UnsubscribeForensicReport`: Attached to `StrippedEmail.Unsubscribe` containing primary classification, risk score (`0–100`), structural alignment evidence (`SingleUnambiguousHeader`, `DkimSignatureCoversUnsubscribe`, `AuthResultsClaimsPass`, `AlignedWithSenderOrKnownEsp`), explicit recon-beacon warning text, detected poison signals, and a shell-hardened `curl` command string for qualifying RFC 8058 `https://` candidates.
-- [ ] **Implement `UnsubscribeForensicAnalyzer.cs` (`MailStripper/Services/`)**:
+  - `UnsubscribeForensicReport`: Attached to `StrippedEmail.Unsubscribe` containing primary classification, risk score (`0–100`), structural alignment evidence (`SingleUnambiguousHeader`, `DkimCoversUnsubscribeHeaders`, `AuthResultsClaimsDkimPass`, `AlignedWithSenderOrKnownEsp`), explicit recon-beacon warning text, detected poison signals, and a shell-hardened `curl` command string for qualifying RFC 8058 `https://` candidates.
+- [x] **Implement `UnsubscribeForensicAnalyzer.cs` (`MailStripper/Services/`)**:
   - Purely in-memory static inspection over `MimeKit.MimeMessage` headers and HTML/text bodies (zero disk I/O, zero network/DNS calls).
   - Enforces RFC 6376 / RFC 8058 / RFC 8601 header integrity rules (duplicate header rejection, exact signature selector/domain/hash-prefix binding, and provenance separation).
   - Scans `message.HtmlBody` using linear-time `RegexOptions.NonBacktracking` (with 250ms match timeout and `MaxUnsubscribeCandidates = 50`) for `<a ...>` elements matching unsubscribe/opt-out/preferences semantics, cross-checking them against header declarations.
-- [ ] **Render the "🛡️ Unsubscribe Shield" Panel & Defang HTML Preview Links (`MailStripper/wwwroot/index.html` & `app.js`)**:
+- [x] **Render the "🛡️ Unsubscribe Shield" Panel & Defang HTML Preview Links (`MailStripper/wwwroot/index.html` & `app.js`)**:
   - Built strictly with safe DOM node creation (`textContent` / `createElement`—zero `innerHTML` interpolation of untrusted email strings) and zero external asset or `fetch()` calls.
-  - **HTML Preview Link Defanging**: Updates `sanitizeHtmlPreview()` in `MailStripper/wwwroot/app.js` to strip live external navigation from `<a href>` elements (removing live `href` / `target="_blank"` navigation while preserving a visual defanged destination tooltip/badge) so clicking inside the Sanitized HTML preview never opens an untrusted external browser tab.
-  - Displays an explicit **Active-Inbox Recon Warning** on every actionable candidate (*"Contacting an unsubscribe endpoint notifies the remote server and may confirm your mailbox is active—only proceed for senders you recognize"*), paired with a **"Copy Sterile One-Click `curl`"** button (`--globoff --proto '=https' --tlsv1.2 --max-redirs 0 -o /dev/null`).
-- [ ] **Expand Demo & Automated Test Fixtures (`MailStripper.Tests` & Playwright)**:
+  - **HTML Preview Link Defanging**: Updates `renderSanitizedHtmlPreview()` in `MailStripper/wwwroot/app.js` to strip live external navigation from `<a href>` and `<area>` elements (converting `<a>` tags into inert `<span class="defanged-link">` badges via `Document.parseHTML` / `DOMParser` + `replaceChildren`) so clicking inside the Sanitized HTML preview never opens an untrusted external browser tab.
+  - Displays an explicit **Active-Inbox Recon Warning** on every actionable candidate (*"Executing an unsubscribe request contacts the remote host and can confirm to the sender that your mailbox is active. Only proceed for senders or ESPs you recognize."*), paired with a **"Copy Sterile `curl`"** button (`--globoff --proto '=https' --tlsv1.2 --max-redirs 0 -o /dev/null`).
+- [x] **Expand Demo & Automated Test Fixtures (`MailStripper.Tests` & Playwright)**:
   - Add xUnit and Playwright test fixtures (updating `KNOWTHANKYEW_PORTFOLIO_MASTER_BRIEF.md` test counts in lockstep) covering:
     1. Conforming RFC 8058 + unambiguously bound `DKIM-Signature` (`s=`, `d=`, `h=`) newsletter.
     2. ESP-hosted unsubscribe (`sendgrid.net` / `list-manage.com`) with domain alignment vs. sender-activity warning separation.

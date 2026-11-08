@@ -408,6 +408,26 @@ button.engine-badge:focus-visible {
   transform: translateY(-1px);
 }
 
+.btn-demo-emerald {
+  background: rgba(16, 185, 129, 0.12);
+  color: #34d399;
+  border-color: rgba(16, 185, 129, 0.35);
+}
+
+.btn-demo-emerald:hover {
+  background: rgba(16, 185, 129, 0.22);
+}
+
+.btn-demo-rose {
+  background: rgba(244, 63, 94, 0.12);
+  color: #fda4af;
+  border-color: rgba(244, 63, 94, 0.35);
+}
+
+.btn-demo-rose:hover {
+  background: rgba(244, 63, 94, 0.22);
+}
+
 .btn-link {
   font-size: 0.8rem;
   color: #38bdf8;
@@ -1179,6 +1199,345 @@ button.engine-badge:focus-visible {
   padding: 1.25rem;
   max-height: 400px;
   overflow: auto;
+}
+
+.html-preview .defanged-link {
+  display: inline;
+  color: #475569;
+  background: #f1f5f9;
+  border: 1px dashed #94a3b8;
+  border-radius: 4px;
+  padding: 0.05rem 0.35rem;
+  text-decoration: none;
+  cursor: not-allowed;
+}
+
+.html-preview .defanged-link-host {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: #be123c;
+  margin-left: 0.3rem;
+}
+
+/* Unsubscribe Forensics & Link Shield */
+.unsub-shield-section {
+  background: var(--bg-card);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xl);
+  padding: 1.65rem;
+  box-shadow: var(--shadow-luxe);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.unsub-shield-section[data-verdict="OneClickPostCandidate"] {
+  border-color: rgba(16, 185, 129, 0.4);
+}
+
+.unsub-shield-section[data-verdict="MailtoCandidate"] {
+  border-color: rgba(6, 182, 212, 0.4);
+}
+
+.unsub-shield-section[data-verdict="HttpLandingCandidate"] {
+  border-color: rgba(245, 158, 11, 0.4);
+}
+
+.unsub-shield-section[data-verdict="PoisonOrReconTrap"] {
+  border-color: rgba(244, 63, 94, 0.55);
+  background: linear-gradient(135deg, rgba(45, 12, 24, 0.75), rgba(18, 24, 38, 0.85));
+}
+
+.unsub-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 1rem;
+  border-bottom: 1px solid var(--border-subtle);
+  padding-bottom: 1rem;
+}
+
+.unsub-title-group {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex: 1;
+  min-width: 240px;
+}
+
+.unsub-icon-badge {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-sm);
+  background: rgba(148, 163, 184, 0.12);
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.unsub-shield-section[data-verdict="OneClickPostCandidate"] .unsub-icon-badge {
+  background: rgba(16, 185, 129, 0.15);
+  border-color: rgba(16, 185, 129, 0.4);
+  color: #34d399;
+}
+
+.unsub-shield-section[data-verdict="MailtoCandidate"] .unsub-icon-badge {
+  background: rgba(6, 182, 212, 0.15);
+  border-color: rgba(6, 182, 212, 0.4);
+  color: #38bdf8;
+}
+
+.unsub-shield-section[data-verdict="HttpLandingCandidate"] .unsub-icon-badge {
+  background: rgba(245, 158, 11, 0.15);
+  border-color: rgba(245, 158, 11, 0.4);
+  color: #fcd34d;
+}
+
+.unsub-shield-section[data-verdict="PoisonOrReconTrap"] .unsub-icon-badge {
+  background: rgba(244, 63, 94, 0.2);
+  border-color: rgba(244, 63, 94, 0.45);
+  color: #fda4af;
+}
+
+.unsub-heading {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.unsub-subheading {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin-top: 0.15rem;
+}
+
+.unsub-badges-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.unsub-verdict-pill,
+.unsub-prov-pill,
+.unsub-risk-pill {
+  font-size: 0.76rem;
+  font-weight: 700;
+  padding: 0.3rem 0.7rem;
+  border-radius: 9999px;
+  border: 1px solid var(--border-subtle);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-secondary);
+}
+
+.unsub-shield-section[data-verdict="OneClickPostCandidate"] .unsub-verdict-pill {
+  background: rgba(16, 185, 129, 0.16);
+  border-color: rgba(16, 185, 129, 0.4);
+  color: #6ee7b7;
+}
+
+.unsub-shield-section[data-verdict="MailtoCandidate"] .unsub-verdict-pill {
+  background: rgba(6, 182, 212, 0.16);
+  border-color: rgba(6, 182, 212, 0.4);
+  color: #7dd3fc;
+}
+
+.unsub-shield-section[data-verdict="HttpLandingCandidate"] .unsub-verdict-pill {
+  background: rgba(245, 158, 11, 0.16);
+  border-color: rgba(245, 158, 11, 0.4);
+  color: #fde68a;
+}
+
+.unsub-shield-section[data-verdict="PoisonOrReconTrap"] .unsub-verdict-pill {
+  background: rgba(244, 63, 94, 0.22);
+  border-color: rgba(244, 63, 94, 0.5);
+  color: #fecdd3;
+}
+
+.unsub-risk-pill {
+  font-family: var(--font-mono);
+}
+
+.unsub-checks-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.unsub-check-chip {
+  font-size: 0.76rem;
+  padding: 0.28rem 0.65rem;
+  border-radius: var(--radius-sm);
+  background: rgba(13, 18, 31, 0.65);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+}
+
+.unsub-check-chip.pass {
+  border-color: rgba(16, 185, 129, 0.35);
+  color: #6ee7b7;
+}
+
+.unsub-check-chip.warn {
+  border-color: rgba(245, 158, 11, 0.35);
+  color: #fde68a;
+}
+
+.unsub-check-chip.fail {
+  border-color: rgba(244, 63, 94, 0.45);
+  color: #fda4af;
+}
+
+.unsub-poison-box {
+  background: rgba(244, 63, 94, 0.12);
+  border: 1px solid rgba(244, 63, 94, 0.4);
+  border-radius: var(--radius-md);
+  padding: 0.9rem 1.1rem;
+}
+
+.unsub-poison-title {
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: #fecdd3;
+  margin-bottom: 0.45rem;
+}
+
+.unsub-signals-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.unsub-signals-list li {
+  font-size: 0.82rem;
+  color: #ffe4e6;
+  padding-left: 1.1rem;
+  position: relative;
+}
+
+.unsub-signals-list li::before {
+  content: '✕';
+  position: absolute;
+  left: 0;
+  color: #fb7185;
+  font-weight: 700;
+}
+
+.unsub-recon-warning {
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  border-radius: var(--radius-md);
+  padding: 0.75rem 1rem;
+  font-size: 0.82rem;
+  color: #fde68a;
+}
+
+.unsub-sterile-box {
+  background: #06080d;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  border-radius: var(--radius-md);
+  padding: 0.9rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.unsub-sterile-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.unsub-sterile-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #6ee7b7;
+}
+
+.unsub-curl-pre {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: #e2e8f0;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  padding: 0.65rem;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+}
+
+.unsub-details {
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 0.65rem;
+}
+
+.unsub-details-summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  user-select: none;
+  padding: 0.25rem 0;
+}
+
+.unsub-details[open] .chevron {
+  transform: rotate(180deg);
+}
+
+.unsub-candidates-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  margin-top: 0.65rem;
+}
+
+.unsub-candidate-item {
+  background: rgba(13, 18, 31, 0.6);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 0.65rem 0.85rem;
+  font-size: 0.8rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.unsub-candidate-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.unsub-candidate-source {
+  font-weight: 700;
+  color: #c4b5fd;
+}
+
+.unsub-candidate-uri {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  word-break: break-all;
+}
+
+.unsub-candidate-flags {
+  font-size: 0.74rem;
+  color: #fda4af;
 }
 
 /* Preview Modal Dialog */

@@ -33,6 +33,7 @@ flowchart TD
         API[".NET 10 Minimal API Gateway<br/><code>MailStripper/Endpoints/StripEndpoints.cs</code>"]
         Parser["📧 MIME & Tracking Stripper<br/><code>MailStripper/Services/MimeKitEmailParser.cs</code>"]
         Validator["🛡️ Security & Size Validator<br/><code>MailStripper/Services/EmailValidator.cs</code>"]
+        UnsubForensics["🔍 Unsubscribe Forensic Analyzer<br/><code>MailStripper/Services/UnsubscribeForensicAnalyzer.cs</code>"]
         MemStore["💾 Volatile RAM Attachment Store<br/><code>MailStripper/Services/MemoryAttachmentStore.cs</code>"]
         Summarizer["📝 Extractive & Hybrid Summarizer<br/><code>MailStripper/Services/ExtractiveEmailSummarizer.cs</code>"]
         PrivacyAudit["🔒 Live Cryptographic Auditor<br/><code>MailStripper/Services/PrivacyAuditService.cs</code>"]
@@ -54,6 +55,7 @@ flowchart TD
     APIClient -->|"POST /api/strip/text (RFC 822)"| API
     API --> Validator
     Validator --> Parser
+    Parser -->|"Static RFC 8058/2369/6376 inspection"| UnsubForensics
     Parser -->|"Store raw streams in volatile RAM"| MemStore
     Parser -->|"Sanitized text & headers"| Summarizer
     Summarizer -.->|"Probe :8000 (1.2s timeout, silent fallback)"| MLSidecar
@@ -69,7 +71,7 @@ flowchart TD
     classDef output fill:#78350f,stroke:#f59e0b,stroke-width:2px,color:#f8fafc;
 
     class User,ClientApp,APIClient client;
-    class API,Parser,Validator,MemStore,Summarizer,PrivacyAudit core;
+    class API,Parser,Validator,UnsubForensics,MemStore,Summarizer,PrivacyAudit core;
     class MLSidecar sidecar;
     class CleanResult,Attachments,AuditEndpoint output;
 ```
@@ -116,6 +118,7 @@ sequenceDiagram
 | 3 | **Tracking Pixel Scrubbing** | HTML bodies are sanitized to neutralize 1x1/0x0 tracking beacons, marketing web bugs, and URL tracking telemetry query strings. |
 | 4 | **Central Package Management (CPM)** | 100% of .NET NuGet packages pinned centrally in `Directory.Packages.props` with fail-closed security gating (`NU1903`/`NU1904`). |
 | 5 | **Cryptographic Privacy Audit** | `GET /api/strip/privacy-audit` exposes live runtime socket and disk verification, proving zero outbound sockets and zero temp files. |
+| 6 | **Air-Gapped Unsubscribe Forensics & Defanged Previews** | `UnsubscribeForensicAnalyzer` inspects RFC 2369/8058/6376/8601 headers and HTML anchors purely in memory without network calls, while `wwwroot/app.js` defangs `<a href>` and `<area>` links in Sanitized HTML previews so clicks cannot navigate outside CSP. |
 
 ---
 
@@ -127,12 +130,14 @@ mailStripper/
 ├── Directory.Packages.props     # Central Package Management (CPM)
 ├── Dockerfile                   # Multi-stage container definition
 ├── mailStripper.slnx            # Solution definition
+├── ROADMAP.md                   # Phased unsubscribe forensics & companion roadmap
 ├── MailStripper/
 │   ├── Endpoints/
 │   │   └── StripEndpoints.cs    # .NET 10 Minimal API route definitions
 │   ├── Models/
 │   │   ├── AttachmentInfo.cs    # Attachment metadata & category models
-│   │   └── StrippedEmail.cs     # Sanitized response DTOs
+│   │   ├── StrippedEmail.cs     # Sanitized response DTOs
+│   │   └── UnsubscribeForensics.cs # Unsubscribe forensic report & candidate DTOs
 │   ├── Security/
 │   │   └── SecurityConstants.cs # Payload bounds & security constants
 │   ├── Services/
@@ -141,15 +146,17 @@ mailStripper/
 │   │   ├── IAttachmentStore.cs  # Storage contract
 │   │   ├── IEmailParser.cs      # MIME parser interface
 │   │   ├── IEmailSummarizer.cs  # Summarization interface
+│   │   ├── IUnsubscribeForensicAnalyzer.cs # Unsubscribe forensics contract
 │   │   ├── InvalidEmailException.cs # Typed validation exceptions
 │   │   ├── MemoryAttachmentStore.cs # Volatile RAM attachment store
 │   │   ├── MimeKitEmailParser.cs# MimeKit parser & pixel stripper
 │   │   ├── MlHybridSummarizer.cs# Hybrid extractor with local ML sidecar probe
 │   │   ├── PrivacyAuditService.cs # Sockets & disk audit service
-│   │   └── SampleEmailService.cs# Built-in demo email fixture
+│   │   ├── SampleEmailService.cs# Built-in demo email fixtures
+│   │   └── UnsubscribeForensicAnalyzer.cs # Static RFC 8058/2369/6376 forensic analyzer
 │   ├── Program.cs               # Kestrel host, DI & CSP configuration
 │   └── wwwroot/                 # Web interface assets (app.js, app.css, index.html)
-├── MailStripper.Tests/          # xUnit test suite (MIME, summarizer, privacy audit)
+├── MailStripper.Tests/          # xUnit test suite (MIME, summarizer, unsubscribe forensics, privacy audit)
 ├── scripts/
 │   └── audit-claims.mjs         # Architectural & invariant claims linter
 └── docs/

@@ -132,6 +132,24 @@ public static class StripEndpoints
             return Results.Ok(result);
         });
 
+        // Quick demo: load RFC 8058 One-Click newsletter fixture
+        group.MapGet("/sample/newsletter", async (IEmailParser parser) =>
+        {
+            var sampleBytes = SampleEmailService.GenerateSampleNewsletterEml();
+            using var ms = new MemoryStream(sampleBytes);
+            var result = await parser.ParseStreamAsync(ms, "sample_rfc8058_newsletter.eml");
+            return Results.Ok(result);
+        });
+
+        // Quick demo: load poisoned phishing unsubscribe trap fixture
+        group.MapGet("/sample/poison-trap", async (IEmailParser parser) =>
+        {
+            var sampleBytes = SampleEmailService.GenerateSamplePoisonTrapEml();
+            using var ms = new MemoryStream(sampleBytes);
+            var result = await parser.ParseStreamAsync(ms, "sample_poisoned_unsubscribe_trap.eml");
+            return Results.Ok(result);
+        });
+
         // Download the sample .eml file directly
         group.MapGet("/sample/download", () =>
         {
