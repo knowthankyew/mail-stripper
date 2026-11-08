@@ -1,6 +1,6 @@
 <!-- diagram-meta
   last-validated: 2026-11-08
-  validated-commit: 38b53a7
+  validated-commit: c572ec9
   covers: [MailStripper/**, MailStripper.Tests/**]
   generated-by: manual
 -->
@@ -55,7 +55,7 @@ flowchart TD
     APIClient -->|"POST /api/strip/text (RFC 822)"| API
     API --> Validator
     Validator --> Parser
-    Parser -->|"Static RFC 8058/2369/6376 inspection"| UnsubForensics
+    Parser -->|"Static RFC 8058/2369/6376/8601 inspection"| UnsubForensics
     Parser -->|"Store raw streams in volatile RAM"| MemStore
     Parser -->|"Sanitized text & headers"| Summarizer
     Summarizer -.->|"Probe :8000 (1.2s timeout, silent fallback)"| MLSidecar
@@ -90,7 +90,7 @@ sequenceDiagram
 
     Consumer->>API: POST /api/strip/file (.eml multipart)
     API->>API: Validate file size <= 50 MB budget
-    API->>Parser: ParseStreamAsync(stream, fileName)
+    API->>Parser: ParseStreamAsync(stream, fileName, authservId)
     Parser->>Parser: Parse MIME structure with MimeKit
     Parser->>Parser: Strip tracking pixels (<img width="1" height="1"> / tracking hosts)
     Parser->>Parser: Sanitize query parameters (strip utm_*, fbclid, etc.)
@@ -153,10 +153,11 @@ mailStripper/
 │   │   ├── MlHybridSummarizer.cs# Hybrid extractor with local ML sidecar probe
 │   │   ├── PrivacyAuditService.cs # Sockets & disk audit service
 │   │   ├── SampleEmailService.cs# Built-in demo email fixtures
-│   │   └── UnsubscribeForensicAnalyzer.cs # Static RFC 8058/2369/6376 forensic analyzer
+│   │   ├── UnsubscribeForensicAnalyzer.cs # Static RFC 8058/2369/6376/8601 forensic analyzer
+│   │   └── UnsubscribeForensicsOptions.cs # Operator options for receiving MX authserv-id verification
 │   ├── Program.cs               # Kestrel host, DI & CSP configuration
 │   └── wwwroot/                 # Web interface assets (app.js, app.css, index.html)
-├── MailStripper.Tests/          # xUnit test suite (MIME, summarizer, unsubscribe forensics, privacy audit)
+├── MailStripper.Tests/          # xUnit test suite (MIME, endpoints, summarizer, forensics, privacy audit)
 ├── scripts/
 │   └── audit-claims.mjs         # Architectural & invariant claims linter
 └── docs/
