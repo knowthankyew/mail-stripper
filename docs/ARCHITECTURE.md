@@ -1,6 +1,6 @@
 <!-- diagram-meta
-  last-validated: 2026-11-08
-  validated-commit: c572ec9
+  last-validated: 2026-11-27
+  validated-commit: 7ebadcd
   covers: [MailStripper/**, MailStripper.Tests/**]
   generated-by: manual
 -->
